@@ -114,7 +114,10 @@ struct redisCommand *commandTable;
  * M: Do not automatically propagate the command on MONITOR.
  */
 struct redisCommand redisCommandTable[] = {
-	{"vvinit",vvinit,3,"wm",0,NULL,1,1,1,0,0}, // From : setbit
+//	{"vvinit",vvinit,3,"wm",0,NULL,1,1,1,0,0}, // Obsolete. Use vvcube instead
+	{"vvcube",vvcube,-3,"wm",0,NULL,1,1,1,0,0},
+	{"vvset",vvset,-3,"wm",0,NULL,1,1,1,0,0},
+	{"vvget",vvget,-3,"r",0,NULL,1,1,1,0,0},
 
 	{"get",getCommand,2,"r",0,NULL,1,1,1,0,0},
     {"set",setCommand,-3,"wm",0,noPreloadGetKeys,1,1,1,0,0},

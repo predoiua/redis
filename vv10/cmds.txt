@@ -1,0 +1,4 @@
+SET k value
+GET k
+vvcube      c1         3           20        3      44
+vvset       c1         1            1        1     100.

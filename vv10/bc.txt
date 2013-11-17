@@ -1,0 +1,17 @@
+#Set a value in cube
+vvset cubecode di1 di2         dix value
+
+vvget cubecode di1 di2         dix
+
+
+#Add a cube
+#     cube_code   dim_number    d1_nr     d2_nr   d3_nr
+vvcube      c1         4           20        3      44
+#Add dimension
+#     cube_code dim_code   dim_index di_number
+vvdim c1              d1           1       10
+#Add dimension item
+#                                                       edges 1... x 
+vvdi  cube_code dim_code   di_code di_index  di_formula di1 .... dix
+
+

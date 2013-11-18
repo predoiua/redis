@@ -16,6 +16,8 @@ robj* build_cube_key(robj* cube, sds ending){
 	key= sdscatlen(key, ending , strlen(ending));
 	return createObject(REDIS_STRING,key);
 }
+
+
 /*
 #     cube_code   dim_number    d1_nr     d2_nr   d3_nr
 vvcube      c1         3           20        3      44
@@ -24,7 +26,6 @@ vvcube      c1         3           20        3      44
 */
 void vvcube(redisClient *c) {
 	robj *o;
-	struct redisClient *fakeClient;
 	long long cell_nr = 1; // Nr cell in the cube
 	long long nr_dim = 0; // Nr of dimension in cube
 	//
@@ -53,23 +54,31 @@ void vvcube(redisClient *c) {
 
 	sds cube_data_store = sdsempty();
 	cube_data_store = sdsgrowzero(cube_dim_store, cell_nr * CELL_BYTES );
-
+	if ( NULL == cube_data_store ) {
+		redisLog(REDIS_WARNING, "Fail to allocate : %ld M of memory for cube data.",   (long int)(cell_nr * CELL_BYTES / 1000000) );
+		addReplyError(c,"Fail to allocate memory for cube data");
+		return;
+	}
 	robj* cube_dim_key = build_cube_key(c->argv[1], CUBE_DIM_END);
 	robj* cube_data_key = build_cube_key(c->argv[1], CUBE_DATA_END);
 
 	//
 	// Do db operations
 	//
-	fakeClient = createFakeClient();
 
-	fakeClient->db = c->db;
+	//delCommand(fakeClient);
+	// Code from delCommand, less answer part. It seams that communication part, generate a crash
+	if (dbDelete(c->db,cube_dim_key)) {
+		signalModifiedKey(c->db,cube_dim_key);
+		notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",cube_dim_key,c->db->id);
+		server.dirty++;
+	}
+	if (dbDelete(c->db,cube_data_key)) {
+		signalModifiedKey(c->db,cube_data_key);
+		notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",cube_data_key,c->db->id);
+		server.dirty++;
+	}
 
-	//delete the existing cube
-	fakeClient->argc = 3;
-	fakeClient->argv = zmalloc(sizeof(robj*)*fakeClient->argc);
-	fakeClient->argv[1] = cube_dim_key;
-	fakeClient->argv[2] = cube_data_key;
-	delCommand(fakeClient);
 
 	//Add new cube structures
     o = createObject(REDIS_STRING,cube_dim_store);
@@ -82,8 +91,7 @@ void vvcube(redisClient *c) {
     //
     freeStringObject(cube_dim_key);
     freeStringObject(cube_data_key);
-    zfree(fakeClient->argv);
-    freeFakeClient(fakeClient);
+
 
     // Resonse
     addReplyLongLong(c,cell_nr);

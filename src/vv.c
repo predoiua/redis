@@ -6,6 +6,7 @@
 #include "redis.h"
 #define CUBE_DIM_END "_dim"
 #define CUBE_DATA_END "_data"
+
 // Number of bytes per cube cell
 #define CELL_BYTES 4
 
@@ -16,7 +17,16 @@ robj* build_cube_key(robj* cube, sds ending){
 	key= sdscatlen(key, ending , strlen(ending));
 	return createObject(REDIS_STRING,key);
 }
-
+void replace_store(redisDb * db,robj* key, sds store){
+	if (dbDelete(db,key)) {
+		signalModifiedKey(db,key);
+		notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",key,db->id);
+		server.dirty++;
+	}
+	//Add new cube structures
+    robj* o = createObject(REDIS_STRING,store);
+    dbAdd(db,key,o);
+}
 
 /*
 #     cube_code   dim_number    d1_nr     d2_nr   d3_nr
@@ -25,7 +35,6 @@ vvcube      c1         3           20        3      44
 2. Create a "cube_data" string for cube data.
 */
 void vvcube(redisClient *c) {
-	robj *o;
 	long long cell_nr = 1; // Nr cell in the cube
 	long long nr_dim = 0; // Nr of dimension in cube
 	//
@@ -40,6 +49,7 @@ void vvcube(redisClient *c) {
 		return;
 	}
 	sds cube_dim_store = sdsempty();
+	// Build cube dim store
 	cube_dim_store = sdsgrowzero(cube_dim_store, sizeof(uint32_t)*(nr_dim + 1));
 	*(cube_dim_store) = (uint32_t)nr_dim;
 	long long temp_nr;// Working variable
@@ -51,14 +61,10 @@ void vvcube(redisClient *c) {
 		*(cube_dim_store + sizeof(uint32_t) * (1+i)) = temp_nr;
 		cell_nr *= temp_nr;
 	}
-
+	// Build cube
 	sds cube_data_store = sdsempty();
-	cube_data_store = sdsgrowzero(cube_dim_store, cell_nr * CELL_BYTES );
-	if ( NULL == cube_data_store ) {
-		redisLog(REDIS_WARNING, "Fail to allocate : %ld M of memory for cube data.",   (long int)(cell_nr * CELL_BYTES / 1000000) );
-		addReplyError(c,"Fail to allocate memory for cube data");
-		return;
-	}
+	cube_data_store = sdsgrowzero(cube_data_store, cell_nr * CELL_BYTES );
+
 	robj* cube_dim_key = build_cube_key(c->argv[1], CUBE_DIM_END);
 	robj* cube_data_key = build_cube_key(c->argv[1], CUBE_DATA_END);
 
@@ -66,63 +72,69 @@ void vvcube(redisClient *c) {
 	// Do db operations
 	//
 
-	//delCommand(fakeClient);
-	// Code from delCommand, less answer part. It seams that communication part, generate a crash
-	if (dbDelete(c->db,cube_dim_key)) {
-		signalModifiedKey(c->db,cube_dim_key);
-		notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",cube_dim_key,c->db->id);
-		server.dirty++;
-	}
-	if (dbDelete(c->db,cube_data_key)) {
-		signalModifiedKey(c->db,cube_data_key);
-		notifyKeyspaceEvent(REDIS_NOTIFY_GENERIC,"del",cube_data_key,c->db->id);
-		server.dirty++;
-	}
+	//delCommand(fakeClient);	// Code from delCommand, less answer part. It seams that communication part, generate a crash
+	replace_store(c->db,cube_dim_key, cube_dim_store);
+	replace_store(c->db,cube_data_key, cube_data_store);
 
-
-	//Add new cube structures
-    o = createObject(REDIS_STRING,cube_dim_store);
-    dbAdd(c->db,cube_dim_key,o);
-
-    o = createObject(REDIS_STRING,cube_data_store);
-    dbAdd(c->db,cube_data_key,o);
     //
     // Clean up
     //
     freeStringObject(cube_dim_key);
     freeStringObject(cube_data_key);
 
-
     // Resonse
     addReplyLongLong(c,cell_nr);
 }
-long long compute_index(int nr_dim, uint32_t* dis, uint32_t* dims ) {
-	long long k = 0;
+int compute_index(int nr_dim, uint32_t* dis, uint32_t* dims, size_t* res ) {
+	size_t k=0;
     for (int i = nr_dim - 1; i >= 0; --i){
         uint32_t idx_dis = *(dis+i);
         uint32_t nr_elem = *(dims+i);;
-
+        if ( nr_elem <= idx_dis ) {
+        	redisLog(REDIS_WARNING,"Index for dimension %d : %d must be < %d \n",i, idx_dis, nr_elem);
+        	return -1;
+        }
         k = k * nr_elem + idx_dis;
     }
-    return k;
+    *res = k;
+    return REDIS_OK;
 }
+
 //hl = high level
-long long compute_index_hl(redisClient *c,int nr_dim_cmd, robj* c_dim){
-	int nr_dim = *( (uint32_t*)c_dim->ptr );
+int compute_index_hl(redisClient *c,int nr_dim_cmd, robj* c_dim, size_t* res){
+	uint32_t nr_dim = *( (uint32_t*)c_dim->ptr );
 	if ( nr_dim != nr_dim_cmd ) {
-		printf( "Number of dimension in cube : %d \n", nr_dim);
-		return -1;
+        redisLog(REDIS_WARNING,"Number of dimension in cube : %d \n", nr_dim);
+		return REDIS_ERR;
 	}
 	uint32_t dis[nr_dim];
 	long long temp_nr;// Working variable
 	for(int i=0; i < nr_dim; ++i ){
 		if (getLongLongFromObject(c->argv[2+i], &temp_nr) != REDIS_OK) {
 			addReplyError(c,"Invalid dimension item index");
-			return -1;
+			return REDIS_ERR;
 		}
 		dis[i]= temp_nr;
 	}
-	return compute_index(nr_dim, dis, (uint32_t*)c_dim->ptr + 1 );
+	return compute_index(nr_dim, dis, (uint32_t*)c_dim->ptr + 1, res );
+}
+
+
+
+int set_cube_value_at_index(robj* o, size_t idx, double value) {
+	if ( sdslen(o->ptr) < idx ){
+    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) ! \n",sdslen(o->ptr), idx);
+    	return REDIS_ERR;
+	}
+	//*( (uint32_t*)c_data->ptr + idx ) = 120;
+	//redisLog(REDIS_WARNING,"\n init -> after = %p -> = %p \n", data, (char*)data + idx * CELL_BYTES + 1  );
+	*((uint64_t*)o->ptr + idx) = (uint64_t)(value * 100.);// in the first byte i keep some info about the cell -> +1
+	return REDIS_OK;
+}
+int get_cube_value_at_index(robj* o, size_t idx, double* value) {
+	//*value = *(uint32_t*)((char*)data + idx * CELL_BYTES + 1 )  / 100;
+	*value =(double) *((uint64_t*)o->ptr + idx) / 100.;
+	return REDIS_OK;
 }
 /*
  * set a value of a cell
@@ -145,13 +157,20 @@ void vvset(redisClient *c) {
 		addReplyError(c,"Invalid cube code");
 		return;
 	}
-
-	long long idx = compute_index_hl(c, c->argc - 3, c_dim);
-	if ( idx == -1) {
+	printf("1");
+	size_t idx; ;
+	if ( REDIS_OK != compute_index_hl(c, c->argc - 3, c_dim, &idx) ) {
+		addReplyError(c,"Fail to compute  cell index");
 		return;
 	}
-
-	*( (uint32_t*)c_data->ptr + idx ) = 120;
+	printf("2");
+	long double target=0.;
+	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc  - 1], &target) ) {
+		addReplyError(c,"Fail read cell value as a double");
+		return;
+	}
+	printf("2");
+	set_cube_value_at_index(c_data, idx, target);
 	//
 	// Clean up
 	//
@@ -176,15 +195,17 @@ void vvget(redisClient *c) {
 		return;
 	}
 
-	long long idx = compute_index_hl(c, c->argc - 2, c_dim);
-	if ( idx == -1) {
+	size_t idx;
+	if ( REDIS_OK != compute_index_hl(c, c->argc - 2, c_dim, &idx) ) {
+		addReplyError(c,"Fail to compute index");
 		return;
 	}
-
-	int64_t res = *( (uint32_t*)c_data->ptr + idx );
+	double target=0.;
+	get_cube_value_at_index(c_data, idx, &target);
+	//int64_t res = *( (uint32_t*)c_data->ptr + idx );
 
 	// Resonse
-	addReplyLongLong(c, res);
+	addReplyDouble(c, target);
 }
 
 /*

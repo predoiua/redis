@@ -101,7 +101,8 @@ int compute_index(int nr_dim, uint32_t* dis, uint32_t* dims, size_t* res ) {
 }
 
 //hl = high level
-int compute_index_hl(redisClient *c,int nr_dim_cmd, robj* c_dim, size_t* res){
+// nr_dim_com = number of dimension from command.
+int compute_index_hl(redisClient *c, int nr_dim_cmd, robj* c_dim, size_t* res){
 	uint32_t nr_dim = *( (uint32_t*)c_dim->ptr );
 	if ( nr_dim != nr_dim_cmd ) {
         redisLog(REDIS_WARNING,"Number of dimension in cube : %d \n", nr_dim);
@@ -121,7 +122,7 @@ int compute_index_hl(redisClient *c,int nr_dim_cmd, robj* c_dim, size_t* res){
 
 
 
-int set_cube_value_at_index(robj* o, size_t idx, double value) {
+int set_simple_cell_value_at_index(robj* o, size_t idx, double value) {
 	if ( sdslen(o->ptr) < idx ){
     	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) ! \n",sdslen(o->ptr), idx);
     	return REDIS_ERR;
@@ -157,27 +158,24 @@ void vvset(redisClient *c) {
 		addReplyError(c,"Invalid cube code");
 		return;
 	}
-	printf("1");
 	size_t idx; ;
 	if ( REDIS_OK != compute_index_hl(c, c->argc - 3, c_dim, &idx) ) {
 		addReplyError(c,"Fail to compute  cell index");
 		return;
 	}
-	printf("2");
 	long double target=0.;
 	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc  - 1], &target) ) {
 		addReplyError(c,"Fail read cell value as a double");
 		return;
 	}
-	printf("2");
-	set_cube_value_at_index(c_data, idx, target);
+	set_simple_cell_value_at_index(c_data, idx, target);
 	//
 	// Clean up
 	//
 	freeStringObject(cube_dim_key);
 	freeStringObject(cube_data_key);
 
-    // Resonse
+    // Response
     addReplyLongLong(c, 1);
 
 }

@@ -4,11 +4,10 @@
 //#include <stdio.h>
 
 #include "redis.h"
-#define CUBE_DIM_END "_dim"
-#define CUBE_DATA_END "_data"
+#include "vv.h"
+#include "vvi.h"
 
-// Number of bytes per cube cell
-#define CELL_BYTES 4
+
 
 robj* build_cube_key(robj* cube, sds ending){
 	// Key for cube structure
@@ -85,20 +84,7 @@ void vvcube(redisClient *c) {
     // Resonse
     addReplyLongLong(c,cell_nr);
 }
-int compute_index(int nr_dim, uint32_t* dis, uint32_t* dims, size_t* res ) {
-	size_t k=0;
-    for (int i = nr_dim - 1; i >= 0; --i){
-        uint32_t idx_dis = *(dis+i);
-        uint32_t nr_elem = *(dims+i);;
-        if ( nr_elem <= idx_dis ) {
-        	redisLog(REDIS_WARNING,"Index for dimension %d : %d must be < %d \n",i, idx_dis, nr_elem);
-        	return -1;
-        }
-        k = k * nr_elem + idx_dis;
-    }
-    *res = k;
-    return REDIS_OK;
-}
+
 
 //hl = high level
 // nr_dim_com = number of dimension from command.
@@ -122,20 +108,15 @@ int compute_index_hl(redisClient *c, int nr_dim_cmd, robj* c_dim, size_t* res){
 
 
 
-int set_simple_cell_value_at_index(robj* o, size_t idx, double value) {
+int set_simple_cell_value_at_index(robj* o, size_t idx, cell_val value) {
 	if ( sdslen(o->ptr) < idx ){
     	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) ! \n",sdslen(o->ptr), idx);
     	return REDIS_ERR;
 	}
-	//*( (uint32_t*)c_data->ptr + idx ) = 120;
-	//redisLog(REDIS_WARNING,"\n init -> after = %p -> = %p \n", data, (char*)data + idx * CELL_BYTES + 1  );
-	*((uint64_t*)o->ptr + idx) = (uint64_t)(value * 100.);// in the first byte i keep some info about the cell -> +1
-	return REDIS_OK;
+	return set_simple_cell_value_at_index_(o->ptr, idx, value);
 }
-int get_cube_value_at_index(robj* o, size_t idx, double* value) {
-	//*value = *(uint32_t*)((char*)data + idx * CELL_BYTES + 1 )  / 100;
-	*value =(double) *((uint64_t*)o->ptr + idx) / 100.;
-	return REDIS_OK;
+int get_cube_value_at_index(robj* o, size_t idx, cell_val* value) {
+	return get_cube_value_at_index_(o->ptr,idx, value);
 }
 /*
  * set a value of a cell
@@ -198,48 +179,10 @@ void vvget(redisClient *c) {
 		addReplyError(c,"Fail to compute index");
 		return;
 	}
-	double target=0.;
+	cell_val target=0.;
 	get_cube_value_at_index(c_data, idx, &target);
 	//int64_t res = *( (uint32_t*)c_data->ptr + idx );
 
 	// Resonse
 	addReplyDouble(c, target);
 }
-
-/*
- * Call :
-   VVINIT cube max_length
- *
- * It is based on :
-SETBIT key offset bitvalue
-void setbitCommand(redisClient *c)
- *
- */
-// Obsolete
-/*
-void vvinit(redisClient *c) {
-	// Prepare a SETBIT command
-	// Set new values in redisClient
-	robj **argv = c->argv;
-	int setbit_argc = 4;
-    c->argv = zmalloc(sizeof(robj*)*setbit_argc);
-
-    c->argc = 0;
-    c->argv[c->argc] = createStringObject("SETBIT", 6);
-    zfree(argv[0]);
-
-    ++c->argc;
-    c->argv[c->argc] = argv[1];
-
-    ++c->argc;
-    c->argv[c->argc] = argv[2];
-
-    c->argc = 0;
-    c->argv[c->argc] = createStringObject("0", 1);
-
-    zfree(argv);
-
-    // Call real working function
-    setbitCommand(c);
-}
-*/

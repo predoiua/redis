@@ -1337,6 +1337,8 @@ void replconfCommand(redisClient *c);
 
 /* My Commands prototypes */
 void vvcube(redisClient *c);
+void vvdim(redisClient *c);
+
 void vvset(redisClient *c);
 void vvget(redisClient *c);
 

@@ -1,18 +1,17 @@
 #include "redis.h"
 #include "vvi.h"
 
-int di_is_simple( uint32_t dim_in_cube, dim* dim, uint32_t* cell ) {
-	uint32_t di_idx = *(cell + dim_in_cube);
-	//Let's get some details about this di
-	return 0;
-
+int di_is_simple(dim _dim, uint32_t dim, cell _cell ) {
+	size_t idx = getCellDiIndex(_cell, dim);
+	uint32_t order = getDimDiOrder(_dim,idx);
+	return (0 == order); // a == b -> 1 if a equal to b; 0 otherwise
 }
 
 // Break along  dim dimension
 // dim = dim index
 // cell = cell address as a list of dim items indexes
-int d_set(uint32_t dim, uint32_t* cell, cell_val value ){
-	if ( 0) { //di_is_simple( dim, cell ) ){
+int d_set(dim _dim, uint32_t dim, cell _cell, cell_val value ){
+	if ( di_is_simple( _dim, dim, _cell ) ){
 		;//set_simple_cell_value_at_index(cell);
 	} else {
 		;
@@ -21,11 +20,13 @@ int d_set(uint32_t dim, uint32_t* cell, cell_val value ){
 	return 0;
 }
 
-int compute_index(int nr_dim, uint32_t* dis, uint32_t* dims, size_t* res ) {
+int compute_index(cube _cube,  cell _cell, size_t* res ) {
+	int nr_dim;
 	size_t k=0;
+	nr_dim = getCubeNrDim(_cube);
     for (int i = nr_dim - 1; i >= 0; --i){
-        uint32_t idx_dis = *(dis+i);
-        uint32_t nr_elem = *(dims+i);;
+        uint32_t idx_dis = getCellDiIndex(_cell,i);
+        uint32_t nr_elem = getCubeNrDi(_cube,i);
         if ( nr_elem <= idx_dis ) {
         	redisLog(REDIS_WARNING,"Index for dimension %d : %d must be < %d \n",i, idx_dis, nr_elem);
         	return -1;

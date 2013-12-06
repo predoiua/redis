@@ -8,3 +8,25 @@ vvget       c1  0   0   0
 vvcube      s1  1  3
 vvset       s1  0  89123999999.45
 vvget       s1  0
+
+vvdim structure 7
+//       dimension   di   		order   formula    nr_parent p1 .. px nr_child c1 .. cy 
+vvdimdi  structure   total   	0     "rd_d+fn_d" 0                     2     
+vvdimdi  structure   rd_d    	1     "dr100rd_f" 1     0               1      2     
+vvdimdi  structure   dr100rd_f  1     "dr100rd_f" 1     0               1      2     
+
+		{"name":"Total","code":"total","formula":
+		,"dis":[
+			{"name":"RD-R and D","code":"rd_d", "formula":"dr100rd_f"
+			,"dis":[
+				{"name":"DR100RD-Medical", "code":"dr100rd_f"}
+			]}
+			,{"name":"FN-Finance","code":"fn_d", "formula":"fn110fn_f+fn120fn_f+fn150fn_f"
+			,"dis":[
+				{"name":"FN110FN-Business Finance", "code":"fn110fn_f" }
+				,{"name":"FN120FN-Transactional Finance", "code":"fn120fn_f" }
+				,{"name":"FN150FN-Audit and Compliance", "code":"fn150fn_f" }
+			]}
+		]}
+
+

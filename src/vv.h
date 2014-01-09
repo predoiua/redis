@@ -73,7 +73,7 @@ typedef struct {
 	uint32_t *nr_parent;
 	uint32_t *parent;
 	uint32_t *nr_char_formula;
-	char* forumula;
+	char* formula;
 } di;
 
 #endif

@@ -117,12 +117,12 @@ int decode_cell_idx(redisClient *c, cell cell){
 }
 
 
-int set_simple_cell_value_at_index(robj* o, size_t idx, double value) {
-	if ( sdslen(o->ptr) < idx ){
-    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) ! \n",sdslen(o->ptr), idx);
+int set_simple_cell_value_at_index(sds data, size_t idx, double value) {
+	if ( sdslen(data) < idx ){
+    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) ! \n",sdslen(data), idx);
     	return REDIS_ERR;
 	}
-	return set_simple_cell_value_at_index_(o->ptr, idx, value);
+	return set_simple_cell_value_at_index_(data, idx, value);
 }
 
 int get_cube_value_at_index(robj* o, size_t idx, cell_val* value) {
@@ -145,16 +145,59 @@ int write_cell_response(redisClient *c, cell _cell, cell_val _cell_val, long* nr
 int is_same_value(cell_val cv, double new_value) {
 	 return abs(cv.val - new_value) < 0.00001 ? 1 : 0;
 }
-int set_value_with_response(redisClient *c, robj* data, cell cell, double new_value, long* nr_writes  ) {
+int set_value_with_response(redisClient *c, sds data, cell cell, double new_value, long *nr_writes  ) {
 	cell_val cv;
-	get_cube_value_at_index_(data->ptr,  *cell.idx, &cv);
+	get_cube_value_at_index_(data,  *cell.idx, &cv);
 	if ( ! is_same_value(cv, new_value) ) {
-		set_simple_cell_value_at_index(data, *cell.idx, new_value);
-		get_cube_value_at_index_(data->ptr,  *cell.idx, &cv); // Read again the new value
+		//set_simple_cell_value_at_index(data, *cell.idx, new_value);
+		//get_cube_value_at_index_(data,  *cell.idx, &cv); // Read again the new value
 		write_cell_response(c, cell, cv, nr_writes);
 	}
 	return REDIS_OK;
 }
+int buildCubeObj(redisClient *c, robj *cube_code, cube *pc ){
+	robj* c_cube = lookupKeyRead(c->db, cube_code);
+	if (c_cube == NULL ){
+		addReplyError(c,"Invalid cube code");
+		return REDIS_ERR;
+	}
+	initCube((*pc), c_cube->ptr);
+	return REDIS_OK;
+}
+int releaseCubeObj(cube *pc ){
+	return REDIS_OK;
+}
+int buildCubeDataObj(redisClient *c, robj *cube_code, void *pdata ){
+	robj* cube_data_key = build_key(cube_code, CUBE_DATA_END);
+	robj* c_data = lookupKeyRead(c->db, cube_data_key);
+	freeStringObject(cube_data_key);
+	pdata = c_data->ptr;
+	return REDIS_OK;
+}
+int releaseCubeDataObj(void *pdata ){
+	return REDIS_OK;
+}
+int buildCellObj(redisClient *c, cube cube, cell *pcell ){
+	sds space = sdsempty();
+	space = sdsMakeRoomFor( space, cellStructSize( *cube.nr_dim ) );
+	initCell((*pcell) , space); setCellNrDims((*pcell),*cube.nr_dim);
+
+	if ( REDIS_OK != decode_cell_idx(c, *pcell) ) {
+		addReplyError(c,"Fail to compute  cell index");
+		return REDIS_ERR;
+	}
+	if ( REDIS_OK != compute_index(cube , *pcell) ) {
+		addReplyError(c,"Fail to compute  flat index");
+		return REDIS_ERR;
+	}
+
+	return REDIS_OK;
+}
+int releaseCellObj(cell *pcell ){
+	sdsfree( (sds)pcell->nr_dim );
+	return REDIS_OK;
+}
+
 /*
  * set a value of a cell
    vvset cubecode di1 di2         dix value
@@ -167,42 +210,22 @@ int set_value_with_response(redisClient *c, robj* data, cell cell, double new_va
  */
 void vvset(redisClient *c) {
 //=== Boilerplate code
-	robj* cube_dim_key  = c->argv[1];
-	robj* cube_data_key = build_key(c->argv[1], CUBE_DATA_END);
 
-	robj* c_cube = lookupKeyRead(c->db, cube_dim_key);
-	robj* c_data = lookupKeyRead(c->db, cube_data_key);
-
-	freeStringObject(cube_data_key);
-
-	if (c_cube == NULL || c_data == NULL){
-		addReplyError(c,"Invalid cube code");
-		return;
-	}
-
-	// Build cube - details about cube
+	// Build all required object
 	cube cube;
-	initCube(cube, c_cube->ptr);
-	// Build cell - details about cell address
+	if ( REDIS_OK !=  buildCubeObj(c, c->argv[1], &cube) ) return;
+	void *pdata=0;
+	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], pdata) ) return;
 	cell cell;
-	char cell_idx[ cellStructSize( *cube.nr_dim ) ];
-	initCell(cell , cell_idx); setCellNrDims(cell,*cube.nr_dim);
-	if ( REDIS_OK != decode_cell_idx(c, cell) ) {
-		addReplyError(c,"Fail to compute  cell index");
-		return;
-	}
-	if ( REDIS_OK != compute_index(cube , cell) ) {
-		addReplyError(c,"Fail to compute  flat index");
-		return;
-	}
+	if ( REDIS_OK !=  buildCellObj(c, cube, &cell) ) return;
+
 //==========
 
 	long double target=0.;
-	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc  - 1], &target) ) {
+	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
 		addReplyError(c,"Fail read cell value as a double");
 		return;
 	}
-
 
     // Response
     //addReplyLongLong(c, 1);
@@ -210,12 +233,15 @@ void vvset(redisClient *c) {
     long cell_resp = 0;
     replylen = addDeferredMultiBulkLength(c);
 
-    //int set_value_with_response(redisClient *c, robj* data, cell _cell, double new_val, long* nr_writes  ) {
-    set_value_with_response(c, c_data, cell, target, &cell_resp );
-    //set_simple_cell_value_at_index(c_data, *cell.idx, target);
-    //write_cell_response(c, cell, target, &cell_resp);
+    // Actual work..
+    set_value_with_response(c, pdata, cell, target, &cell_resp );
 
     setDeferredMultiBulkLength(c, replylen, cell_resp);
+    //Clear
+    releaseCellObj(&cell);
+    releaseCubeObj(&cube);
+    releaseCubeDataObj(pdata);
+
 
 }
 void vvget(redisClient *c) {

@@ -7,37 +7,18 @@ int di_is_simple(dim _dim, uint32_t dim, cell _cell ) {
 	return (0 == order); // a == b -> 1 if a equal to b; 0 otherwise
 }
 
+/*
+ 1. Get di for this dimension, using dim index
+ 2. is di simple ?
+ 	   yes = set simple value
+ 	   no =
+ 	    	get children
+ 	    	compute value for each child
+ 	    	set value
+ */
+int d_set(cube _cube, int dim_idx,  cell _cell, cell_val value ) {
 
-int c_set( cell _cell, cell_val value ) {
-
-}
-int c_break_back(dim _dim, cell _cell, cell_val value) {
-	/*
-    for(int i=0; i<_cube->rowCount();++i){
-        DDimension* dim = _cube->getChild(i);
-        d_set( dim, idx, value);
-
-        DDimensionItem* di = dim->getDimItem( idx.at(i));
-        if( Planning::DIM_ITEM_TYPE_COMPLEX == di->getType() ){
-            //## - daca este item complex se apeleaza din nou functia cate o data pentru fiecare elem simplu copil
-            QList<int> pc;
-            pozitii_copii(pc, dim, di, Planning::DIM_ITEM_TYPE_SIMPLE);
-            foreach (int c, pc) {
-                QList<int> idxc(idx);
-                idxc[ dim->getPosition()] = c;
-                CellValue cv = _storage->getValue(idxc);
-                c_break_back(idxc, nr_dim+1, cv.getDouble());
-            }
-        }
-    }
-    */
-	if ( di_is_simple( _dim, dim, _cell ) ){
-		;//set_simple_cell_value_at_index(cell);
-	} else {
-		;
-		//double val_init = d_recalculeaza_cell(dim, idx);
-	}
-	return 0;
+	return REDIS_OK;
 }
 /*
  void CubeOperation::d_set( DDimension* dim, QList<int> idx, double value) {
@@ -93,6 +74,54 @@ int c_break_back(dim _dim, cell _cell, cell_val value) {
     }
 }
  */
+
+
+int c_set(cube _cube, cell _cell, cell_val value ) {
+	// WRONG -- For each dim order by priority (?) - formula formula should be deduced based on cell idx, not dim order ..
+	// 1. for each dimension . 0 - _cell.nr_dim
+	//		2// set value on that dimension
+	//
+	int i;
+	for(i=0;i<*_cell.nr_dim;++i){ // 1
+		d_set(_cube, i, _cell, value);
+	}
+	return REDIS_OK;
+}
+/*
+void CubeOperation::c_break_back(QList<int> idx, int nr_dim, double value){
+	//qDebug() << "BR" << idx << " nr_dim :" << nr_dim << " val" << value;
+	for(int i=0; i<_cube->rowCount();++i){
+		DDimension* dim = _cube->getChild(i);
+		d_set( dim, idx, value);
+
+		DDimensionItem* di = dim->getDimItem( idx.at(i));
+		if( Planning::DIM_ITEM_TYPE_COMPLEX == di->getType() ){
+			//## - daca este item complex se apeleaza din nou functia cate o data pentru fiecare elem simplu copil
+			QList<int> pc;
+			pozitii_copii(pc, dim, di, Planning::DIM_ITEM_TYPE_SIMPLE);
+			foreach (int c, pc) {
+				QList<int> idxc(idx);
+				idxc[ dim->getPosition()] = c;
+				CellValue cv = _storage->getValue(idxc);
+				c_break_back(idxc, nr_dim+1, cv.getDouble());
+			}
+		}
+	}
+}
+*/
+/*
+int c_break_back(cell _cell, cell_val value) {
+	if ( di_is_simple( _dim, dim, _cell ) ){
+		;//set_simple_cell_value_at_index(cell);
+	} else {
+		;
+		//double val_init = d_recalculeaza_cell(dim, idx);
+	}
+	return 0;
+}
+*/
+
+
 int compute_index(cube _cube,  cell _cell ) {
 	int nr_dim;
 	size_t k=0;
@@ -106,19 +135,20 @@ int compute_index(cube _cube,  cell _cell ) {
         }
         k = k * nr_elem + idx_dis;
     }
+
     setCellFlatIdx(_cell, k);
     return REDIS_OK;
 }
 
 
-int set_simple_cell_value_at_index_(void* ptr, size_t idx, double value) {
+int set_simple_cell_value_at_index_(sds ptr, size_t idx, double value) {
 	//*( (uint32_t*)c_data->ptr + idx ) = 120;
 	//redisLog(REDIS_WARNING,"\n init -> after = %p -> = %p \n", data, (char*)data + idx * CELL_BYTES + 1  );
 	((cell_val*)ptr + idx)->val = value;// in the first byte i keep some info about the cell -> +1
 	return REDIS_OK;
 }
-int get_cube_value_at_index_(void  *ptr, size_t idx, cell_val* value) {
-	//redisLog(REDIS_WARNING, "Read from cube data, at index : %zu", idx);
+int get_cube_value_at_index_(sds  ptr, size_t idx, cell_val* value) {
+	redisLog(REDIS_WARNING, "Read from cube data, at index : %zu", idx);
 
 	//*value = *(uint32_t*)((char*)data + idx * CELL_BYTES + 1 )  / 100;
 	//*value =(cell_val) *((cell_val*)ptr + idx) / 100.;

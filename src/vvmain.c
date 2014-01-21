@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include "vvi.h"
 
-char* cube_data;
+char* cube_d;
 char* cube_m;
 char* dim_m_struct;
 char* dim_m_measure;

@@ -1,9 +1,9 @@
 #include "redis.h"
 #include "vvi.h"
 
-int di_is_simple(dim _dim, uint32_t dim, cell _cell ) {
-	size_t idx = getCellDiIndex(_cell, dim);
-	uint32_t order = getDimDiOrder(_dim,idx);
+int di_is_simple(dim _dim, uint32_t dim, cell *_cell ) {
+	//size_t idx = getCellDiIndex(_cell, dim);
+	uint32_t order = 0;//getDimDiOrder(_dim,idx);
 	return (0 == order); // a == b -> 1 if a equal to b; 0 otherwise
 }
 
@@ -16,7 +16,7 @@ int di_is_simple(dim _dim, uint32_t dim, cell _cell ) {
  	    	compute value for each child
  	    	set value
  */
-int d_set(cube _cube, int dim_idx,  cell _cell, cell_val value ) {
+int d_set(cube *_cube, int dim_idx,  cell *_cell, cell_val value ) {
 
 	return REDIS_OK;
 }
@@ -76,13 +76,12 @@ int d_set(cube _cube, int dim_idx,  cell _cell, cell_val value ) {
  */
 
 
-int c_set(cube _cube, cell _cell, cell_val value ) {
-	// WRONG -- For each dim order by priority (?) - formula formula should be deduced based on cell idx, not dim order ..
+int c_set(cube* _cube, cell* _cell, cell_val value ) {
 	// 1. for each dimension . 0 - _cell.nr_dim
 	//		2// set value on that dimension
 	//
 	int i;
-	for(i=0;i<*_cell.nr_dim;++i){ // 1
+	for(i=0;i<_cell->nr_dim;++i){ // 1
 		d_set(_cube, i, _cell, value);
 	}
 	return REDIS_OK;
@@ -122,10 +121,10 @@ int c_break_back(cell _cell, cell_val value) {
 */
 
 
-int compute_index(cube _cube,  cell _cell ) {
+int compute_index(cube* _cube,  cell* _cell ) {
 	int nr_dim;
 	size_t k=0;
-	nr_dim = getCubeNrDim(_cube);
+	nr_dim = *(_cube->nr_dim);
     for (int i = nr_dim - 1; i >= 0; --i){
         uint32_t idx_dis = getCellDiIndex(_cell,i);
         uint32_t nr_elem = getCubeNrDi(_cube,i);
@@ -135,24 +134,20 @@ int compute_index(cube _cube,  cell _cell ) {
         }
         k = k * nr_elem + idx_dis;
     }
-
-    setCellFlatIdx(_cell, k);
+    //redisLog(REDIS_WARNING,"Flat index: %zu\n",k);
+    _cell->idx = k;
     return REDIS_OK;
 }
 
 
-int set_simple_cell_value_at_index_(sds ptr, size_t idx, double value) {
-	//*( (uint32_t*)c_data->ptr + idx ) = 120;
-	//redisLog(REDIS_WARNING,"\n init -> after = %p -> = %p \n", data, (char*)data + idx * CELL_BYTES + 1  );
+int set_simple_cell_value_at_index_(void *ptr, size_t idx, double value) {
+	redisLog(REDIS_WARNING, "Set at :%p", ptr);
+
 	((cell_val*)ptr + idx)->val = value;// in the first byte i keep some info about the cell -> +1
 	return REDIS_OK;
 }
-int get_cube_value_at_index_(sds  ptr, size_t idx, cell_val* value) {
-	redisLog(REDIS_WARNING, "Read from cube data, at index : %zu", idx);
-
-	//*value = *(uint32_t*)((char*)data + idx * CELL_BYTES + 1 )  / 100;
-	//*value =(cell_val) *((cell_val*)ptr + idx) / 100.;
+int get_cube_value_at_index_(void *ptr, size_t idx, cell_val* value) {
+	redisLog(REDIS_WARNING, "Get at :%p", ptr);
 	*value = *((cell_val*)ptr + idx) ;
-
 	return REDIS_OK;
 }

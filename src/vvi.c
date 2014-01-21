@@ -1,12 +1,91 @@
 #include "redis.h"
 #include "vvi.h"
+#include "vv.h"
 
+cube* buildDiChild(redisClient *c,cube* _cube, int dim, int di){
+	sds s = sdsnew("di_");
+	s = sdscatprintf(s,"%d_%d_%d", *_cube->nr_dim, dim, di);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* redis_data = lookupKeyRead(c->db, so);
+	decrRefCount(so);
+
+	if (redis_data == NULL ){
+		addReplyError(c,"Invalid key code");
+		return NULL;
+	}
+
+	cube* res = (cube*)sdsnewlen(NULL, sizeof(cube));
+	initCube(res, redis_data->ptr);
+	return res;
+}
+void releaseDi(cube* di){
+	sdsfree( (sds)di);
+}
+
+int set_value_down_full(cube* cube, cell* cell, cell_val value
+		, cube_data* cube_data
+		, int curr_dim  // Algorithm parameters
+		){
+	/*
+
+	di = {dim = cube->get_dim( curr_dim) ; dim ->get_di ( cell->idx at curr_dim ) }
+
+	if (di is simple)
+		if  curr_dim != _cube.nr_dims - 1  // if not last version
+			set_value_down_full ( ++curr_dim // move to next dimension
+		set raw value ( cube_data, cell.idx ) // set store value
+		// Normal exit
+	else
+		set raw value ( cube_data, cell.idx ) // set store value
+		for each (di->getChildren)
+			compute new_value // curr_cell_val = value / nr_children
+			build new_cell
+			set set_value_down_full ( new_cell, new_value )
+			release new_cell
+	 */
+	return REDIS_OK;
+}
+
+int recompute_value_up_full(cube* cube, cell* cell
+		,cube_data* cube_data
+		,int curr_level  // Algorithm parameters
+		,int curr_dim
+		){
+	/*
+	/// Recompute only when cell change( so dim =  0 )
+	if curr_dim == 0
+		recompute_cell
+
+	get di ( curr_dim )
+	//Move up a level on this dim, if possible
+	if di->level == curr_level
+		if di->hasParents
+			for each di->getParent
+				new_cell
+				recompute_value_up_full( new_cell, curr_dim = 0 )
+				release new_cell
+
+	//Move to next dimension
+	 if curr_dim == last dim
+	 	 if curr_leve == cube.max_level
+	 	 	 exit
+		// One level up
+		recompute_value_up_full( curr_level++ , curr_dim = 0 )
+	else
+		// try next dimension
+		recompute_value_up_full( curr_dimm + 1 )
+
+
+	 */
+	return REDIS_OK;
+}
+/*
 int di_is_simple(dim _dim, uint32_t dim, cell *_cell ) {
 	//size_t idx = getCellDiIndex(_cell, dim);
 	uint32_t order = 0;//getDimDiOrder(_dim,idx);
 	return (0 == order); // a == b -> 1 if a equal to b; 0 otherwise
 }
-
+*/
 /*
  1. Get di for this dimension, using dim index
  2. is di simple ?
@@ -75,17 +154,26 @@ int d_set(cube *_cube, int dim_idx,  cell *_cell, cell_val value ) {
 }
  */
 
-
+/*
+	void CubeOperation::c_set(QList<int> idx, double value){
+		  c_break_back(idx, 0, value);
+		  c_recalculeaza_afectat(idx);
+	}
+ */
 int c_set(cube* _cube, cell* _cell, cell_val value ) {
 	// 1. for each dimension . 0 - _cell.nr_dim
 	//		2// set value on that dimension
 	//
+	/*
 	int i;
 	for(i=0;i<_cell->nr_dim;++i){ // 1
 		d_set(_cube, i, _cell, value);
 	}
+	*/
+
 	return REDIS_OK;
 }
+
 /*
 void CubeOperation::c_break_back(QList<int> idx, int nr_dim, double value){
 	//qDebug() << "BR" << idx << " nr_dim :" << nr_dim << " val" << value;

@@ -43,7 +43,7 @@ void init(){
 	setCubeNrDi(_c,0,4); // Measure = 4
 	setCubeNrDi(_c,1,7); // structure = 7
 	setCubeNrDi(_c,2,3); // time = 3
-
+/*
 	int nr_dim_cur;
 	dim _d;
 	nr_dim_cur = 4;
@@ -54,7 +54,7 @@ void init(){
 	setDimDiOrder(_d,1,0); // price
 	setDimDiOrder(_d,2,1); // ns = qty * price
 	setDimDiOrder(_d,3,2); // avg_price = ns/qty
-
+*/
 	printf("Done init.\n");
 }
 int main(){

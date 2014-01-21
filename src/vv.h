@@ -45,6 +45,7 @@ typedef struct {
     _cube->nr_dim = (uint32_t *)_ptr; \
     _cube->nr_di = (uint32_t *)((uint32_t *)_ptr + 1); \
 } while(0);
+
 #define setCubeNrDims(_cube,_nr_dims) do { \
 		*(_cube->nr_dim ) = (uint32_t)_nr_dims; \
 } while(0);
@@ -52,7 +53,7 @@ typedef struct {
 		*(_cube->nr_di + _nr_dim )= (uint32_t)_nr_di; \
 } while(0);
 #define getCubeNrDi(_cube,_nr_dim)  (*(_cube->nr_di + _nr_dim ))
-
+/*
 typedef struct {
 	uint32_t *dim_index_in_cube; // 1 element
 	uint32_t *nr_di;  // 1 element. Nr of id in this dimension
@@ -84,7 +85,7 @@ typedef struct {
 	uint32_t *nr_char_formula;
 	char* formula;
 } di;
-
+*/
 
 
 

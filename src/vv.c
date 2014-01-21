@@ -50,14 +50,15 @@ int set_simple_cell_value_at_index(sds data, size_t idx, double value) {
 	return set_simple_cell_value_at_index_(data, idx, value);
 }
 
-int get_cube_value_at_index(robj* o, size_t idx, cell_val* value) {
-	return get_cube_value_at_index_(o->ptr,idx, value);
+int get_cube_value_at_index(sds data, size_t idx, cell_val* value) {
+	return get_cube_value_at_index_(data,idx, value);
 }
 /*
  * It's not really necessary to have this command, but make further development easier
  * vvdim dim_code nr_di
  *
  */
+/*
 void vvdim(redisClient *c) {
 	long long nr_di = 0; // Nr of dimensions items in dimension
 	if (getLongLongFromObject(c->argv[2], &nr_di) != REDIS_OK) {
@@ -74,6 +75,7 @@ void vvdim(redisClient *c) {
 
 	addReplyLongLong(c,nr_di);
 }
+*/
 /*
 #     cube_code   dim_number    d1_nr     d2_nr   d3_nr
 vvcube      c1         3           20        3      44
@@ -123,7 +125,7 @@ void vvcube(redisClient *c) {
 	replace_store(c->db,cube_data_key, cube_data_store);
 
     // Clean up
-    freeStringObject(cube_data_key);
+	decrRefCount(cube_data_key);
 
     // Response
     addReplyLongLong(c,cell_nr);
@@ -173,7 +175,7 @@ int releaseCubeObj(cube *pc ){
 int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 	robj* cube_data_key = build_key(cube_code, CUBE_DATA_END);
 	robj* c_data = lookupKeyRead(c->db, cube_data_key);
-	freeStringObject(cube_data_key);
+	decrRefCount(cube_data_key);
 	if (c_data == NULL){
 		addReplyError(c,"Cube data is missing");
 		return REDIS_ERR;
@@ -219,6 +221,12 @@ int releaseCellObj(cell *pcell ){
  * 2. Do value spreading. ( bear hold in mind :) )
  */
 void vvset(redisClient *c) {
+
+	long double target=0.;
+	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
+		addReplyError(c,"Fail read cell value as a double");
+		return;
+	}
 //=== Boilerplate code
 
 	// Build all required object
@@ -229,12 +237,6 @@ void vvset(redisClient *c) {
 	cell cell;
 	if ( REDIS_OK !=  buildCellObj(c, &cube, &cell) ) return;
 //==========
-
-	long double target=0.;
-	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
-		addReplyError(c,"Fail read cell value as a double");
-		return;
-	}
 
     // Response
     //addReplyLongLong(c, 1);
@@ -255,40 +257,17 @@ void vvset(redisClient *c) {
 }
 void vvget(redisClient *c) {
 //=== Boilerplate code
-	robj* cube_dim_key  = c->argv[1];
-	robj* cube_data_key = build_key(c->argv[1], CUBE_DATA_END);
-
-	robj* c_cube = lookupKeyRead(c->db, cube_dim_key);
-	robj* c_data = lookupKeyRead(c->db, cube_data_key);
-	// Clean cube codes;
-	freeStringObject(cube_data_key);
-
-	redisLog(REDIS_WARNING, "Data address(vvget) :%p", c_data->ptr);
-
-	if (c_cube == NULL || c_data == NULL){
-		addReplyError(c,"Invalid cube code");
-		return;
-	}
-	// Build cube - details about cube
+	// Build all required object
 	cube cube;
-	initCube((&cube), c_cube->ptr);
-	// Build cell - details about cell address
+	if ( REDIS_OK !=  buildCubeObj(c, c->argv[1], &cube) ) return;
+	cube_data cube_data;
+	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
 	cell cell;
-	char cell_idx[ cellStructSize( *cube.nr_dim ) ];
-	initCell((&cell) , cell_idx); setCellNrDims((&cell),*cube.nr_dim);
-
-	if ( REDIS_OK != decode_cell_idx(c, &cell) ) {
-		addReplyError(c,"Fail to compute  cell index");
-		return;
-	}
-	if ( REDIS_OK != compute_index(&cube , &cell) ) {
-		addReplyError(c,"Fail to compute  flat index");
-		return;
-	}
+	if ( REDIS_OK !=  buildCellObj(c, &cube, &cell) ) return;
 
 //==========
 	cell_val target;
-	get_cube_value_at_index(c_data, cell.idx, &target);
+	get_cube_value_at_index(cube_data.ptr, cell.idx, &target);
 
 	// Response
 //	addReplyDouble(c, target.val);

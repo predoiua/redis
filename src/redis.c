@@ -115,7 +115,7 @@ struct redisCommand *commandTable;
  */
 struct redisCommand redisCommandTable[] = {
 	{"vvcube",vvcube,-3,"wm",0,NULL,1,1,1,0,0},
-	{"vvdim",vvdim, 3,"wm",0,NULL,1,1,1,0,0},
+	//{"vvdim",vvdim, 3,"wm",0,NULL,1,1,1,0,0},
 	{"vvset",vvset,-3,"wm",0,NULL,1,1,1,0,0},
 	{"vvget",vvget,-3,"r",0,NULL,1,1,1,0,0},
 

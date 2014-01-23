@@ -4,6 +4,10 @@
 #include <stdint.h> // uint32_t
 #include <stddef.h> // size_t
 
+/*
+ * Basic structure related with cube operation.
+ * Can be included in any file.
+ */
 #define CUBE_DATA_END "_data"
 
 // Number of bytes per cube cell
@@ -53,39 +57,6 @@ typedef struct {
 		*(_cube->nr_di + _nr_dim )= (uint32_t)_nr_di; \
 } while(0);
 #define getCubeNrDi(_cube,_nr_dim)  (*(_cube->nr_di + _nr_dim ))
-/*
-typedef struct {
-	uint32_t *dim_index_in_cube; // 1 element
-	uint32_t *nr_di;  // 1 element. Nr of id in this dimension
-	uint32_t *di_order; // nr_di elements. level. 0 = lowest level
-
-	//*type		// I assume that order == 0 -> type == simple
-} dim;
-#define initDim(_dim,_ptr) do { \
-    _dim.nr_di    = (uint32_t *)_ptr; \
-    _dim.di_order = (uint32_t *)((uint32_t *)_ptr + 1); \
-} while(0);
-
-#define dimStructSize(nr_di) ( sizeof(uint32_t) + nr_di * sizeof(uint32_t) )
-#define setDimNrDi(_dim,_nr_di) do { \
-		*(_dim.nr_di ) = (uint32_t)_nr_di; \
-} while(0);
-#define setDimDiOrder(_dim,_nr_di,_di_order) do { \
-		*(_dim.di_order + _nr_di )= (uint32_t)_di_order; \
-} while(0);
-#define getDimNrDi(_dim)  (*(_dim.nr_di))
-#define getDimDiOrder(_dim, _di_idx)  (*(_dim.di_order + _di_idx))
-
-
-typedef struct {
-	uint32_t *nr_child;
-	uint32_t *child;
-	uint32_t *nr_parent;
-	uint32_t *parent;
-	uint32_t *nr_char_formula;
-	char* formula;
-} di;
-*/
 
 
 

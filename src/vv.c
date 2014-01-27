@@ -5,6 +5,7 @@
 
 #include "redis.h"
 #include "vv.h"
+#include "vvfct.h"
 #include "vvi.h"
 
 
@@ -98,7 +99,7 @@ void vvcube(redisClient *c) {
 	}
 	sds cube_dim_store = sdsempty();
 	// Build cube dim store
-	cube_dim_store = sdsgrowzero(cube_dim_store, cubeStructSize(nr_dim));
+	cube_dim_store = sdsgrowzero(cube_dim_store, sizeof(uint32_t)*(nr_dim + 1) );
 	cube _cube;
 	initCube((&_cube), cube_dim_store);
 	setCubeNrDims((&_cube), nr_dim);
@@ -150,13 +151,13 @@ int is_same_value(double old_value, double new_value) {
 	 return abs(old_value - new_value) < 0.00001 ? 1 : 0;
 }
 
-int set_value_with_response(redisClient *c, void* data, cell *cell, double new_value, long *nr_writes  ) {
+int set_value_with_response(redisClient *c, void *data, cell *_cell, cell_val *_cell_val, long *nr_writes  ) {
 	cell_val cv;
-	get_cube_value_at_index_(data, cell->idx, &cv);
-	if ( ! is_same_value(cv.val, new_value) ) {
-		set_simple_cell_value_at_index(data, cell->idx, new_value);
-		get_cube_value_at_index_(data,  cell->idx, &cv); // Read again the new value
-		write_cell_response(c, cell, &cv, nr_writes);
+	get_cube_value_at_index_(data, _cell->idx, &cv);
+	if ( ! is_same_value(cv.val, _cell_val->val) ) {
+		set_simple_cell_value_at_index(data, _cell->idx, _cell_val->val);
+		get_cube_value_at_index_(data,  _cell->idx, &cv); // Read again the new value
+		write_cell_response(c, _cell, &cv, nr_writes);
 	}
 	return REDIS_OK;
 }
@@ -180,7 +181,7 @@ int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 		addReplyError(c,"Cube data is missing");
 		return REDIS_ERR;
 	}
-	redisLog(REDIS_WARNING, "Data address :%p", c_data->ptr);
+	//redisLog(REDIS_WARNING, "Data address :%p", c_data->ptr);
 
 	cube_data->ptr = c_data->ptr;
 	//redisLog(REDIS_WARNING, "Value for data :%p from %p", *pdata, c_data->ptr);
@@ -189,7 +190,7 @@ int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 int releaseCubeDataObj(cube_data *cube_data ){
 	return REDIS_OK;
 }
-int buildCellObj(redisClient *c, cube* cube, cell *pcell ){
+int buildCellObjFromClient(redisClient *c, cube* cube, cell *pcell ){
 	sds space = sdsempty();
 	space = sdsMakeRoomFor( space, cellStructSize( *cube->nr_dim ) );
 	initCell(pcell , space); setCellNrDims(pcell,*cube->nr_dim);
@@ -202,9 +203,9 @@ int buildCellObj(redisClient *c, cube* cube, cell *pcell ){
 		addReplyError(c,"Fail to compute  flat index");
 		return REDIS_ERR;
 	}
-
 	return REDIS_OK;
 }
+
 int releaseCellObj(cell *pcell ){
 	sdsfree( (sds)pcell->idxs );
 	return REDIS_OK;
@@ -235,19 +236,32 @@ void vvset(redisClient *c) {
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
 	cell cell;
-	if ( REDIS_OK !=  buildCellObj(c, &cube, &cell) ) return;
+	if ( REDIS_OK !=  buildCellObjFromClient(c, &cube, &cell) ) return;
 //==========
 
     // Response
     //addReplyLongLong(c, 1);
     void *replylen = NULL;
-    long cell_resp = 0;
+    long nr_writes = 0;
     replylen = addDeferredMultiBulkLength(c);
 
     // Actual work..
-    set_value_with_response(c, cube_data.ptr, &cell, target, &cell_resp );
+    cell_val cv;
+    cv.val = target;
+    //set_value_with_response(c, cube_data.ptr, &cell, &cv, &nr_writes );
+//    nt setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
+//    		, cube_data* cube_data
+//    		, int curr_dim  // Algorithm parameters
+//    		, long* nr_writes // How many result has been written to client
+//    		);
 
-    setDeferredMultiBulkLength(c, replylen, cell_resp);
+    setValueDownward(c, &cube, &cell, &cv
+    		, cube_data.ptr
+    		,  0  // Algorithm parameters
+    		, &nr_writes // How many result has been written to client
+    		);
+
+    setDeferredMultiBulkLength(c, replylen, nr_writes);
     //Clear
     releaseCellObj(&cell);
     releaseCubeObj(&cube);
@@ -263,7 +277,7 @@ void vvget(redisClient *c) {
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
 	cell cell;
-	if ( REDIS_OK !=  buildCellObj(c, &cube, &cell) ) return;
+	if ( REDIS_OK !=  buildCellObjFromClient(c, &cube, &cell) ) return;
 
 //==========
 	cell_val target;

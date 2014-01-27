@@ -22,15 +22,15 @@ void print_cube(char* cd){
 	printf("===========\n");
 }
 void print_dim(char* cd){
-	dim _d;
-	int i,v, nr_di;
-	initDim(_d,cd);
-	nr_di = getDimNrDi(_d);
-	printf("Nr di in dims:%d\n", nr_di);
-	for(i=0; i< nr_di; ++i){
-		v = getDimDiOrder(_d,i);
-		printf("-pos:%d order:%d\n", i, v);
-	}
+//	dim _d;
+//	int i,v, nr_di;
+//	initDim(_d,cd);
+//	nr_di = getDimNrDi(_d);
+//	printf("Nr di in dims:%d\n", nr_di);
+//	for(i=0; i< nr_di; ++i){
+//		v = getDimDiOrder(_d,i);
+//		printf("-pos:%d order:%d\n", i, v);
+//	}
 
 }
 void init(){

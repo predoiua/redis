@@ -44,7 +44,7 @@ typedef struct {
 	uint32_t *nr_dim;// size = 1
 	uint32_t *nr_di; // size = nr_dim. nr of di in each dim
 } cube;
-#define cubeStructSize(nr_dim) sizeof(uint32_t)*(nr_dim + 1)
+
 #define initCube(_cube,_ptr) do { \
     _cube->nr_dim = (uint32_t *)_ptr; \
     _cube->nr_di = (uint32_t *)((uint32_t *)_ptr + 1); \

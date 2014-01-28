@@ -30,9 +30,10 @@ void replace_store(redisDb *db,robj *key, sds store){
 
 int decode_cell_idx(redisClient *c, cell *cell){
 	long long temp_nr;// Working variable
+	int cell_elem_stat_pos = 2; // 0 = cmd, 1 = cube name, 2 = first dim index ..
 
 	for(int i=0; i < cell->nr_dim; ++i ){
-		if (getLongLongFromObject(c->argv[2+i], &temp_nr) != REDIS_OK) {
+		if (getLongLongFromObject(c->argv[cell_elem_stat_pos+i], &temp_nr) != REDIS_OK) {
 			addReplyError(c,"Invalid dimension item index");
 			return REDIS_ERR;
 		}
@@ -184,6 +185,11 @@ int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 	//redisLog(REDIS_WARNING, "Data address :%p", c_data->ptr);
 
 	cube_data->ptr = c_data->ptr;
+	if ( NULL == c_data->ptr ) {
+		addReplyError(c,"No space ( null pointer) in Cube data");
+		return REDIS_ERR;
+
+	}
 	//redisLog(REDIS_WARNING, "Value for data :%p from %p", *pdata, c_data->ptr);
 	return REDIS_OK;
 }
@@ -239,6 +245,7 @@ void vvset(redisClient *c) {
 	if ( REDIS_OK !=  buildCellObjFromClient(c, &cube, &cell) ) return;
 //==========
 
+	//redisLog(REDIS_WARNING, "Cell flat index :%zu", cell.idx);
     // Response
     //addReplyLongLong(c, 1);
     void *replylen = NULL;
@@ -256,7 +263,7 @@ void vvset(redisClient *c) {
 //    		);
 
     setValueDownward(c, &cube, &cell, &cv
-    		, cube_data.ptr
+    		, &cube_data
     		,  0  // Algorithm parameters
     		, &nr_writes // How many result has been written to client
     		);

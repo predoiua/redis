@@ -42,22 +42,26 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 	if ( NULL == di ){
 		return REDIS_ERR;
 	}
+	//redisLog(REDIS_WARNING, "Current dim :%d", curr_dim);
+	redisLog(REDIS_WARNING, "Is simple :%d", diIsSimple(di) );
 	if ( diIsSimple(di) ) {
 		if ( (*_cube->nr_dim - 1 )== curr_dim ) {
 			setValueDownward(c, _cube, _cell, _cell_val, cube_data, ++curr_dim, nr_writes);
 		} else {
+			//redisLog(REDIS_WARNING, "( before) set_value_with_response )Cell flat index :%zu", _cell->idx);
 			set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
 		}
 	} else {
 		set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
 		cell_val new_val;
-		new_val.val = _cell_val->val;
+		new_val.val = _cell_val->val / *di->nr_dim;
 		for(int i=0; i< *di->nr_dim;++i){
 			uint32_t new_di_idx = getCubeNrDi(di,i);
+			redisLog(REDIS_WARNING, "Child id value   :%d", new_di_idx);
 			// Instead of create a new cell, reuse the old one
 			setCellIdx(_cell,curr_dim, new_di_idx);
 			if ( REDIS_OK != compute_index(_cube , _cell) ) {
-				addReplyError(c,"Fail to compute  flat index for the new cell");
+				redisLog(REDIS_WARNING,"ABORT: Fail to compute  flat index for the new cell");
 				return REDIS_ERR;
 			}
 			setValueDownward(c, _cube, _cell, &new_val, cube_data, ++curr_dim, nr_writes);

@@ -151,13 +151,13 @@ int compute_index(cube* _cube,  cell* _cell ) {
 
 
 int set_simple_cell_value_at_index_(void *ptr, size_t idx, double value) {
-	redisLog(REDIS_WARNING, "Set at :%p", ptr);
+	//redisLog(REDIS_WARNING, "Set at :%p", ptr);
 
 	((cell_val*)ptr + idx)->val = value;// in the first byte i keep some info about the cell -> +1
 	return REDIS_OK;
 }
 int get_cube_value_at_index_(void *ptr, size_t idx, cell_val* value) {
-	redisLog(REDIS_WARNING, "Get at :%p", ptr);
+	//redisLog(REDIS_WARNING, "Get at :%p", ptr);
 	*value = *((cell_val*)ptr + idx) ;
 	return REDIS_OK;
 }

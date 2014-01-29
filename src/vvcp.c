@@ -42,29 +42,35 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 	if ( NULL == di ){
 		return REDIS_ERR;
 	}
-	//redisLog(REDIS_WARNING, "Current dim :%d", curr_dim);
-	redisLog(REDIS_WARNING, "Is simple :%d", diIsSimple(di) );
-	if ( diIsSimple(di) ) {
-		if ( (*_cube->nr_dim - 1 )== curr_dim ) {
-			setValueDownward(c, _cube, _cell, _cell_val, cube_data, ++curr_dim, nr_writes);
-		} else {
-			//redisLog(REDIS_WARNING, "( before) set_value_with_response )Cell flat index :%zu", _cell->idx);
-			set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
-		}
+	if ( ( *_cube->nr_dim - 1 )!= curr_dim ) {
+		//redisLog(REDIS_WARNING, "Is Simple: move to :%d", curr_dim + 1);
+		int next_dim = curr_dim + 1;
+		setValueDownward(c, _cube, _cell, _cell_val, cube_data, next_dim, nr_writes);
 	} else {
+		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
 		set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
+	}
+
+	//redisLog(REDIS_WARNING, "Is simple :%d on dim: %d/%d", diIsSimple(di), curr_dim, *_cube->nr_dim -1 );
+	if ( ! diIsSimple(di) ) {
+		//redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
+		//set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
 		cell_val new_val;
 		new_val.val = _cell_val->val / *di->nr_dim;
 		for(int i=0; i< *di->nr_dim;++i){
 			uint32_t new_di_idx = getCubeNrDi(di,i);
-			redisLog(REDIS_WARNING, "Child id value   :%d", new_di_idx);
+			uint32_t old_di_idx = getCellDiIndex(_cell, curr_dim);
 			// Instead of create a new cell, reuse the old one
 			setCellIdx(_cell,curr_dim, new_di_idx);
+			//redisLog(REDIS_WARNING, "New index on dim :%d is :%d child nr:%d", curr_dim, new_di_idx,i);
 			if ( REDIS_OK != compute_index(_cube , _cell) ) {
 				redisLog(REDIS_WARNING,"ABORT: Fail to compute  flat index for the new cell");
 				return REDIS_ERR;
 			}
-			setValueDownward(c, _cube, _cell, &new_val, cube_data, ++curr_dim, nr_writes);
+			//Go one level downward
+			setValueDownward(c, _cube, _cell, &new_val, cube_data, curr_dim, nr_writes);
+			//revert to old index
+			setCellIdx(_cell,curr_dim, old_di_idx);
 		}
 	}
 	diRelease(di);

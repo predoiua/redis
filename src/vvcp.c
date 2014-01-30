@@ -77,13 +77,12 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 	/*
 	di = {dim = cube->get_dim( curr_dim) ; dim ->get_di ( cell->idx at curr_dim ) }
 
-	if (di is simple)
-		if  curr_dim != _cube.nr_dims - 1  // if not last version
-			set_value_down_full ( ++curr_dim ) // move to next dimension
-		set raw value ( cube_data, cell.idx ) // set store value
-		// Normal exit
+	if  curr_dim != _cube.nr_dims - 1  // if not last version
+		set_value_down_full ( ++curr_dim ) // move to next dimension
 	else
 		set raw value ( cube_data, cell.idx ) // set store value
+
+	if ( !di is simple)
 		compute new_value // curr_cell_val = value / nr_children
 		for each (di->getChildren)
 			build new_cell
@@ -93,12 +92,84 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 	return REDIS_OK;
 }
 
+typedef struct {
+	uint32_t	nr_elem;
+	uint32_t*	elem;
+} elements;
+#define initElements(_el,_ptr) do { \
+    _el->nr_elem = (uint32_t)(*_ptr); \
+    _el->elem = (uint32_t *) ( (char*)_ptr + sizeof(uint32_t) ); \
+} while(0);
+
+#define setElementsNrElem(_el,_nr_elem) do { \
+		*(_el->nr_elem ) = (uint32_t)_nr_elem; \
+} while(0);
+#define setElementsElement(_el,_idx,_elem) do { \
+		*(_el->elem + _idx )= (uint32_t)_elem; \
+} while(0);
+#define getElementsElement(_el,_idx)  (*(_el->elem + _idx ))
+
+typedef struct {
+	uint32_t	nr_dim;
+	elements**		ptr; // array of pointer elements
+} slice;  // represent a cube slice ( selection ). If on each dim I have one item -> cell
+
+
+
+slice* buildSlice(cube *_cube){
+	uint32_t nr_dim = *_cube->nr_dim;
+	sds res_space =   sdsnewlen(NULL, sizeof(uint32_t) + nr_dim * sizeof(elements*));
+	slice* res = (slice*)res_space;
+	res->nr_dim = nr_dim;
+	for(uint32_t i=0; i< nr_dim; ++i) {
+		uint32_t nr_di = getCubeNrDi(_cube, i);
+		sds dim_space = sdsnewlen(NULL, sizeof(uint32_t) + nr_di * sizeof(uint32_t));
+		elements* el; initElements(el, dim_space);
+
+	}
+
+	return res;
+}
+/*
+ int recompute_values(cube*, slice*
+ 	  curr_cell
+  	  curr_level
+  	  curr_dim
+ 	 ) {
+
+	if  curr_dim != _cube.nr_dims  // if not last version
+		recompute_values ( ++curr_dim ) // move to next dimension
+	else
+		formula->get formula for cell
+		cell_val = eval formula
+		store (cell, cell_valu)
+
+	elem 			= get_elem( curr _dim );
+	curr_dim_level  = get_curr dim level
+	get next index at same level
+	if ( found ) {
+		recompute_values ..
+	} else {
+		if curr_dim_level  < cube level
+
+		else
+
+	}
+
+
+ }
+
+
+ */
+
+
+	/*
 int recompute_value_up_full(cube* cube, cell* cell
 		,cube_data* cube_data
 		,int curr_level  // Algorithm parameters
 		,int curr_dim
 		){
-	/*
+
 	/// Recompute only when cell change( so dim =  0 )
 	if curr_dim == 0
 		recompute_cell
@@ -122,7 +193,7 @@ int recompute_value_up_full(cube* cube, cell* cell
 		// try next dimension
 		recompute_value_up_full( curr_dimm + 1 )
 
-
-	 */
 	return REDIS_OK;
 }
+	 */
+

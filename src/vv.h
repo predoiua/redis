@@ -53,10 +53,10 @@ typedef struct {
 #define setCubeNrDims(_cube,_nr_dims) do { \
 		*(_cube->nr_dim ) = (uint32_t)_nr_dims; \
 } while(0);
-#define setCubeNrDi(_cube,_nr_dim,_nr_di) do { \
-		*(_cube->nr_di + _nr_dim )= (uint32_t)_nr_di; \
+#define setCubeNrDi(_cube,_dim_idx,_nr_di) do { \
+		*(_cube->nr_di + _dim_idx )= (uint32_t)_nr_di; \
 } while(0);
-#define getCubeNrDi(_cube,_nr_dim)  (*(_cube->nr_di + _nr_dim ))
+#define getCubeNrDi(_cube,_dim_idx)  (*(_cube->nr_di + _dim_idx ))
 
 
 

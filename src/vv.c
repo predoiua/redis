@@ -34,11 +34,12 @@ int decode_cell_idx(redisClient *c, cell *cell){
 
 	for(int i=0; i < cell->nr_dim; ++i ){
 		if (getLongLongFromObject(c->argv[cell_elem_stat_pos+i], &temp_nr) != REDIS_OK) {
-			addReplyError(c,"Invalid dimension item index");
+			//addReplyError(c,"Invalid dimension item index");
+			redisLog(REDIS_WARNING,"Invalid dimension item index. It must be numerical.");
 			return REDIS_ERR;
 		}
 		setCellIdx(cell, i, temp_nr);
-//		redisLog(REDIS_WARNING,"Index :%d Value before : %lld ,after write %zu\n", i, temp_nr, getCellDiIndex(cell,i) );
+		//redisLog(REDIS_WARNING,"Index :%d Value before : %lld ,after write %zu\n", i, temp_nr, getCellDiIndex(cell,i) );
 	}
 	return REDIS_OK;
 }
@@ -196,24 +197,27 @@ int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 int releaseCubeDataObj(cube_data *cube_data ){
 	return REDIS_OK;
 }
-int buildCellObjFromClient(redisClient *c, cube* cube, cell *pcell ){
+cell* buildCellObjFromClientDin(redisClient *c, cube* cube ){
 	sds space = sdsempty();
-	space = sdsMakeRoomFor( space, cellStructSize( *cube->nr_dim ) );
-	initCell(pcell , space); setCellNrDims(pcell,*cube->nr_dim);
+	space = sdsMakeRoomFor( space, cellStructSizeDin( *cube->nr_dim ) );
+	cell *_cell = (cell*) space;
+	initCellDin(_cell , space); setCellNrDims(_cell,*cube->nr_dim);
 
-	if ( REDIS_OK != decode_cell_idx(c, pcell) ) {
+	if ( REDIS_OK != decode_cell_idx(c, _cell) ) {
+		releaseCellObjDin(_cell);
 		addReplyError(c,"Fail to compute  cell index");
-		return REDIS_ERR;
+		return NULL;
 	}
-	if ( REDIS_OK != compute_index(cube , pcell) ) {
+	if ( REDIS_OK != compute_index(cube , _cell) ) {
 		addReplyError(c,"Fail to compute  flat index");
-		return REDIS_ERR;
+		return NULL;
 	}
-	return REDIS_OK;
+	return _cell;
 }
 
-int releaseCellObj(cell *pcell ){
-	sdsfree( (sds)pcell->idxs );
+int releaseCellObjDin(cell *_cell ){
+	sdsfree( (sds)_cell );
+	_cell = NULL;
 	return REDIS_OK;
 }
 
@@ -241,8 +245,8 @@ void vvset(redisClient *c) {
 	if ( REDIS_OK !=  buildCubeObj(c, c->argv[1], &cube) ) return;
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
-	cell cell;
-	if ( REDIS_OK !=  buildCellObjFromClient(c, &cube, &cell) ) return;
+	cell *cell = buildCellObjFromClientDin(c, &cube);
+	if ( cell == NULL ) return;
 //==========
 
 	//redisLog(REDIS_WARNING, "Cell flat index :%zu", cell.idx);
@@ -262,7 +266,7 @@ void vvset(redisClient *c) {
 //    		, long* nr_writes // How many result has been written to client
 //    		);
 
-    setValueDownward(c, &cube, &cell, &cv
+    setValueDownward(c, &cube, cell, &cv
     		, &cube_data
     		,  0  // Algorithm parameters
     		, &nr_writes // How many result has been written to client
@@ -270,7 +274,7 @@ void vvset(redisClient *c) {
 
     setDeferredMultiBulkLength(c, replylen, nr_writes);
     //Clear
-    releaseCellObj(&cell);
+    releaseCellObjDin(cell);
     releaseCubeObj(&cube);
     releaseCubeDataObj(&cube_data);
 
@@ -283,19 +287,20 @@ void vvget(redisClient *c) {
 	if ( REDIS_OK !=  buildCubeObj(c, c->argv[1], &cube) ) return;
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
-	cell cell;
-	if ( REDIS_OK !=  buildCellObjFromClient(c, &cube, &cell) ) return;
+	cell *cell = buildCellObjFromClientDin(c, &cube);
+	if ( cell == NULL ) return;
+
 
 //==========
 	cell_val target;
-	get_cube_value_at_index(cube_data.ptr, cell.idx, &target);
+	get_cube_value_at_index(cube_data.ptr, cell->idx, &target);
 
 	// Response
 //	addReplyDouble(c, target.val);
     void *replylen = NULL;
     long cell_resp = 0;
     replylen = addDeferredMultiBulkLength(c);
-    write_cell_response(c, &cell, &target, &cell_resp);
+    write_cell_response(c, cell, &target, &cell_resp);
     setDeferredMultiBulkLength(c, replylen, cell_resp);
 
 }

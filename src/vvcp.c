@@ -84,8 +84,10 @@ typedef struct {
 	int32_t	curr_elem; // An index < nr_elem
 	int32_t	*elems;
 } elements;
+#define getElementsSize(nr_elem)  ( 2 * sizeof(int32_t) + nr_elem * sizeof(int32_t*) )
+
 #define initElements(_el,_ptr) do { \
-    _el->elems = (int32_t *) ( _ptr  ); \
+    _el->elems = (int32_t *) ( (char*)_ptr + 2 * sizeof(int32_t)  ); \
 } while(0);
 
 #define setElementsNrElem(_el,_nr_elem) do { \
@@ -97,45 +99,62 @@ typedef struct {
 #define getElementsElement(_el,_idx)  (*(_el->elems + _idx ))
 
 typedef struct {
-	uint32_t	nr_dim;
+	uint32_t		nr_dim;
 	elements**		ptr; // array of pointer elements
 } slice;  // represent a cube slice ( selection ). If on each dim I have one item -> cell
 
-#define getSliceElement(_slice,_idx)  (*(_slice->ptr + _idx ))
+#define getSliceSize(nr_dim)  ( sizeof(uint32_t) + nr_dim * sizeof(elements*) )
+
+#define initSlice(_sl,_ptr) do { \
+    _sl->ptr = (elements**) ( (char*)_ptr +  sizeof(int32_t)  ); \
+} while(0);
+#define setSliceElement(_sl,_idx,_elem) do { \
+		*(_sl->ptr + _idx )= (elements*)_elem; \
+} while(0);
+#define getSliceElement(_slice,_idx)  (elements*)(_slice->ptr + _idx )
 
 slice* buildSlice(cube *_cube){
 	uint32_t nr_dim = *_cube->nr_dim;
-	sds res_space =   sdsnewlen(NULL, sizeof(uint32_t) + nr_dim * sizeof(elements*)); // FIXME: I think is just stupid.. I think I need space only for elements... mmmm... no really ...
-	slice* res = (slice*)res_space;
+	sds res_space =   sdsnewlen(NULL, getSliceSize(nr_dim));
+	slice* res = (slice*)res_space; initSlice(res, res_space);
 	res->nr_dim = nr_dim;
 	for(uint32_t i=0; i< nr_dim; ++i) {
 		uint32_t nr_di = getCubeNrDi(_cube, i);
-		sds dim_space = sdsnewlen(NULL, nr_di * sizeof(int32_t)); // FIXME: ~~ same as above
-		elements* el; initElements(el, dim_space);
-
+		sds dim_space = sdsnewlen(NULL,getElementsSize(nr_di));
+		elements* el=(elements*)dim_space; initElements(el, dim_space);
+		setSliceElement(res, i, el);
 	}
-
 	return res;
 }
-
+int releaseSlice(slice* _slice){
+	uint32_t nr_dim = _slice->nr_dim;
+	for(uint32_t i=0; i< nr_dim; ++i) {
+		elements* el=getSliceElement(_slice,i);
+		sdsfree((sds)el);
+		el = NULL;
+	}
+	sdsfree((sds)_slice);
+	_slice = NULL;
+	return REDIS_OK;
+}
 // First index with them minimum level
 int resetAtInitialPosition(elements* _el) {
 	int32_t curr_level = INT32_MAX;
 	int res = REDIS_ERR;
 	for(int32_t i=0; i < _el->nr_elem; ++i){
 		int32_t level = getElementsElement(_el, i);
-		if ( level > 0 )
+		if ( level > 0 ) {
 			if ( level < curr_level ) {
 				curr_level = level;
 				_el->curr_elem = i;
 				res = REDIS_OK;
 			}
+		}
 	}
 	return res;
 }
 
 int resetSliceElemnts(slice *_slice ) {
-	int res = REDIS_ERR;
 	for(uint32_t i =0; i<_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
 		if ( REDIS_OK != resetAtInitialPosition(el) )

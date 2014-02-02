@@ -14,8 +14,8 @@ int buildCubeObj(redisClient *c, robj *cube_code, cube *pc );
 int releaseCubeObj(cube *pc );
 int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data );
 int releaseCubeDataObj(cube_data *cube_data );
-int buildCellObjFromClient(redisClient *c, cube* cube, cell *pcell );
-int releaseCellObj(cell *pcell );
+cell* buildCellObjFromClientDin(redisClient *c, cube *_cube );
+int releaseCellObjDin(cell *_cell );
 
 robj* build_key(robj* cube, sds ending);
 void replace_store(redisDb *db,robj *key, sds store);

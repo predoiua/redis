@@ -22,9 +22,9 @@ typedef struct{
 	size_t		idx;    // cell index in a flat structure
 	size_t		*idxs;   // an array of di index in each dimension
 } cell;
-#define cellStructSize(nr_dim) ( nr_dim * sizeof(size_t) )
-#define initCell(_cell,_ptr) do { \
-    _cell->idxs  = (size_t *)_ptr; \
+#define cellStructSizeDin(nr_dim) ( sizeof(cell) + nr_dim * sizeof(size_t) )
+#define initCellDin(_cell,_ptr) do { \
+    _cell->idxs  = (size_t *)( (char*)_ptr + sizeof(cell) ); \
 } while(0);
 #define setCellNrDims(_cell,_nr_dims) do { \
 		_cell->nr_dim = _nr_dims; \

@@ -1,3 +1,6 @@
+vvset CUBE_SALE 2 2 0 124.4
+vvget CUBE_SALE 2 2 0
+
 SET k value
 GET k
 vvcube      c1  3  20   3      44

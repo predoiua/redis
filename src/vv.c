@@ -266,12 +266,13 @@ void vvset(redisClient *c) {
 //    		, long* nr_writes // How many result has been written to client
 //    		);
 
-    setValueDownward(c, &cube, cell, &cv
+    cellSetValueDownward(c, &cube, cell, &cv
     		, &cube_data
     		,  0  // Algorithm parameters
     		, &nr_writes // How many result has been written to client
     		);
 
+    cellSetValueUpward(&cube, cell);
     setDeferredMultiBulkLength(c, replylen, nr_writes);
     //Clear
     releaseCellObjDin(cell);

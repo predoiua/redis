@@ -28,15 +28,19 @@ int is_same_value(double old_value, double new_value);
 cube* diBuild(redisClient *c, sds cube_code, int dim, int di);
 void diRelease(cube* di);
 int diIsSimple(cube* di);
-int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
+
+int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
 		, cube_data* cube_data
 		, int curr_dim  // Algorithm parameters
 		, long* nr_writes // How many result has been written to client
 		);
-int recompute_value_up_full(cube* cube, cell* cell
-		,cube_data* cube_data
-		,int curr_level  // Algorithm parameters
-		,int curr_dim
-		);
+//int recompute_value_up_full(cube* cube, cell* cell
+//		,cube_data* cube_data
+//		,int curr_level  // Algorithm parameters
+//		,int curr_dim
+//		);
+
+int cellSetValueUpward(cube *_cube, cell *_cell);
+int sliceSetValueUpward(slice *_slice);
 
 #endif

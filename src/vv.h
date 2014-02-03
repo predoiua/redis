@@ -58,6 +58,41 @@ typedef struct {
 } while(0);
 #define getCubeNrDi(_cube,_dim_idx)  (*(_cube->nr_di + _dim_idx ))
 
+// Negative values = error/un-initialized
+typedef struct {
+	int32_t	nr_elem;
+	int32_t	curr_elem; // An index < nr_elem
+	int32_t	*elems;
+} elements;
+#define getElementsSize(nr_elem)  (sizeof(elements) + nr_elem * sizeof(int32_t) )
+
+#define initElements(_el,_ptr) do { \
+    _el->elems = (int32_t *) ( (char*)_ptr + sizeof(elements)  ); \
+} while(0);
+
+#define setElementsNrElem(_el,_nr_elem) do { \
+		_el->nr_elem = (int32_t)_nr_elem; \
+} while(0);
+#define setElementsElement(_el,_idx,_elem) do { \
+		*(_el->elems + _idx ) = (int32_t)_elem; \
+} while(0);
+#define getElementsElement(_el,_idx)  (*(_el->elems + _idx ))
+
+typedef struct {
+	uint32_t		nr_dim;
+	elements**		ptr; // array of pointer elements
+} slice;  // represent a cube slice ( selection ). If on each dim I have one item -> cell
+
+#define getSliceSize(nr_dim)  ( sizeof(slice) )
+
+#define initSlice(_sl,_ptr) do { \
+		_sl->ptr = (elements**) ( (char*)_ptr +  sizeof(slice)  ); \
+} while(0);
+
+#define setSliceElement(_sl,_idx,_elem) do { \
+		*(_sl->ptr + _idx )= (elements*)_elem; \
+} while(0);
+#define getSliceElement(_sl,_idx)  (elements*)(_sl->ptr + _idx )
 
 
 #endif

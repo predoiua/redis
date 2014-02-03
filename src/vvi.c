@@ -17,10 +17,12 @@ int di_is_simple(dim _dim, uint32_t dim, cell *_cell ) {
  	    	compute value for each child
  	    	set value
  */
+/*
 int d_set(cube *_cube, int dim_idx,  cell *_cell, cell_val value ) {
 
 	return REDIS_OK;
 }
+*/
 /*
  void CubeOperation::d_set( DDimension* dim, QList<int> idx, double value) {
    // qDebug() << "D Set:" << dim->getCode() << idx << " val:" << value;
@@ -82,20 +84,19 @@ int d_set(cube *_cube, int dim_idx,  cell *_cell, cell_val value ) {
 		  c_recalculeaza_afectat(idx);
 	}
  */
+/*
 int c_set(cube* _cube, cell* _cell, cell_val value ) {
 	// 1. for each dimension . 0 - _cell.nr_dim
 	//		2// set value on that dimension
 	//
-	/*
-	int i;
-	for(i=0;i<_cell->nr_dim;++i){ // 1
-		d_set(_cube, i, _cell, value);
-	}
-	*/
+//	int i;
+//	for(i=0;i<_cell->nr_dim;++i){ // 1
+//		d_set(_cube, i, _cell, value);
+//	}
 
 	return REDIS_OK;
 }
-
+*/
 /*
 void CubeOperation::c_break_back(QList<int> idx, int nr_dim, double value){
 	//qDebug() << "BR" << idx << " nr_dim :" << nr_dim << " val" << value;

@@ -32,7 +32,7 @@ int diIsSimple(cube* di){
 	else
 		return 0;
 }
-int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
+int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
 		, cube_data* cube_data
 		, int curr_dim  // Algorithm parameters
 		, long* nr_writes // How many result has been written to client
@@ -45,7 +45,7 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 	if ( ( *_cube->nr_dim - 1 )!= curr_dim ) {
 		//redisLog(REDIS_WARNING, "Is Simple: move to :%d", curr_dim + 1);
 		int next_dim = curr_dim + 1;
-		setValueDownward(c, _cube, _cell, _cell_val, cube_data, next_dim, nr_writes);
+		cellSetValueDownward(c, _cube, _cell, _cell_val, cube_data, next_dim, nr_writes);
 	} else {
 		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
 		set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
@@ -68,7 +68,7 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 				return REDIS_ERR;
 			}
 			//Go one level downward
-			setValueDownward(c, _cube, _cell, &new_val, cube_data, curr_dim, nr_writes);
+			cellSetValueDownward(c, _cube, _cell, &new_val, cube_data, curr_dim, nr_writes);
 			//revert to old index
 			setCellIdx(_cell,curr_dim, old_di_idx);
 		}
@@ -78,67 +78,44 @@ int setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_v
 	return REDIS_OK;
 }
 
-// Negative values = error/un-initialized
-typedef struct {
-	int32_t	nr_elem;
-	int32_t	curr_elem; // An index < nr_elem
-	int32_t	*elems;
-} elements;
-#define getElementsSize(nr_elem)  ( 2 * sizeof(int32_t) + nr_elem * sizeof(int32_t*) )
 
-#define initElements(_el,_ptr) do { \
-    _el->elems = (int32_t *) ( (char*)_ptr + 2 * sizeof(int32_t)  ); \
-} while(0);
 
-#define setElementsNrElem(_el,_nr_elem) do { \
-		*(_el->nr_elem ) = (int32_t)_nr_elem; \
-} while(0);
-#define setElementsElement(_el,_idx,_elem) do { \
-		*(_el->elem + _idx )= (int32_t)_elem; \
-} while(0);
-#define getElementsElement(_el,_idx)  (*(_el->elems + _idx ))
-
-typedef struct {
-	uint32_t		nr_dim;
-	elements**		ptr; // array of pointer elements
-} slice;  // represent a cube slice ( selection ). If on each dim I have one item -> cell
-
-#define getSliceSize(nr_dim)  ( sizeof(uint32_t) + nr_dim * sizeof(elements*) )
-
-#define initSlice(_sl,_ptr) do { \
-    _sl->ptr = (elements**) ( (char*)_ptr +  sizeof(int32_t)  ); \
-} while(0);
-#define setSliceElement(_sl,_idx,_elem) do { \
-		*(_sl->ptr + _idx )= (elements*)_elem; \
-} while(0);
-#define getSliceElement(_slice,_idx)  (elements*)(_slice->ptr + _idx )
-
-slice* buildSlice(cube *_cube){
+slice* sliceBuild(cube *_cube){
+	static uint32_t ELEMENT_DEF_LEVEL = -1;
 	uint32_t nr_dim = *_cube->nr_dim;
 	sds res_space =   sdsnewlen(NULL, getSliceSize(nr_dim));
 	slice* res = (slice*)res_space; initSlice(res, res_space);
 	res->nr_dim = nr_dim;
+	//redisLog(REDIS_WARNING,"Done Slice. Nr of dimensions: %d", res->nr_dim );
 	for(uint32_t i=0; i< nr_dim; ++i) {
 		uint32_t nr_di = getCubeNrDi(_cube, i);
 		sds dim_space = sdsnewlen(NULL,getElementsSize(nr_di));
 		elements* el=(elements*)dim_space; initElements(el, dim_space);
+		setElementsNrElem(el,nr_di);
+		for(uint32_t j=0; j< nr_di; ++j) {
+			setElementsElement(el, j, ELEMENT_DEF_LEVEL);
+		}
+		//redisLog(REDIS_WARNING,"Done Element. Position : %d", i );
 		setSliceElement(res, i, el);
 	}
 	return res;
 }
-int releaseSlice(slice* _slice){
+int sliceRelease(slice* _slice){
 	uint32_t nr_dim = _slice->nr_dim;
 	for(uint32_t i=0; i< nr_dim; ++i) {
 		elements* el=getSliceElement(_slice,i);
 		sdsfree((sds)el);
+		//redisLog(REDIS_WARNING,"Done free element. Position : %d", i );
 		el = NULL;
 	}
 	sdsfree((sds)_slice);
 	_slice = NULL;
+	//redisLog(REDIS_WARNING,"Done free slice." );
+
 	return REDIS_OK;
 }
 // First index with them minimum level
-int resetAtInitialPosition(elements* _el) {
+int elementResetCurrentPosition(elements* _el) {
 	int32_t curr_level = INT32_MAX;
 	int res = REDIS_ERR;
 	for(int32_t i=0; i < _el->nr_elem; ++i){
@@ -154,17 +131,35 @@ int resetAtInitialPosition(elements* _el) {
 	return res;
 }
 
-int resetSliceElemnts(slice *_slice ) {
+int sliceResetElemntsCurrentPosition(slice *_slice ) {
 	for(uint32_t i =0; i<_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
-		if ( REDIS_OK != resetAtInitialPosition(el) )
+		if ( REDIS_OK != elementResetCurrentPosition(el) )
 			return REDIS_ERR;
 	}
 	return REDIS_OK;
 }
-int setValueUpward(slice *_slice) {
+int sliceAddCell(slice* _slice, cell *_cell){
+	for(uint32_t i =0; i<_slice->nr_dim; ++i){
+		elements* el = getSliceElement(_slice, i);
+		size_t di_idx = getCellDiIndex(_cell, i);
+		int32_t level = 1; // FIXME. Get the real level
+		setElementsElement(el, di_idx ,level)
+	}
+	return REDIS_OK;
+}
+int cellSetValueUpward(cube *_cube, cell *_cell) {
+	slice* _slice;
+	_slice = sliceBuild(_cube);
+	sliceAddCell(_slice, _cell);
+	int res;
+	res = sliceSetValueUpward(_slice);
+	sliceRelease(_slice);
+	return res;
+}
+int sliceSetValueUpward(slice *_slice) {
 	//Init Slice
-	resetSliceElemnts(_slice);
+	sliceResetElemntsCurrentPosition(_slice);
 	while(1){
 		return REDIS_OK;
 	}

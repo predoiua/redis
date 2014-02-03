@@ -95,7 +95,7 @@ slice* sliceBuild(cube *_cube){
 		for(uint32_t j=0; j< nr_di; ++j) {
 			setElementsElement(el, j, ELEMENT_DEF_LEVEL);
 		}
-		//redisLog(REDIS_WARNING,"Done Element. Position : %d", i );
+		//redisLog(REDIS_WARNING,"Done Element. Position : %d element address : %p", i,(void*) el);
 		setSliceElement(res, i, el);
 	}
 	return res;
@@ -131,7 +131,7 @@ int elementResetCurrentPosition(elements* _el) {
 	return res;
 }
 
-int sliceResetElemntsCurrentPosition(slice *_slice ) {
+int sliceResetElementsCurrentPosition(slice *_slice ) {
 	for(uint32_t i =0; i<_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
 		if ( REDIS_OK != elementResetCurrentPosition(el) )
@@ -139,30 +139,60 @@ int sliceResetElemntsCurrentPosition(slice *_slice ) {
 	}
 	return REDIS_OK;
 }
+
 int sliceAddCell(slice* _slice, cell *_cell){
 	for(uint32_t i =0; i<_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
 		size_t di_idx = getCellDiIndex(_cell, i);
 		int32_t level = 1; // FIXME. Get the real level
+		//redisLog(REDIS_WARNING,"Set at dim:%d dim index : %d at element address: %p", (int)i, (int)di_idx , (void*)el);
 		setElementsElement(el, di_idx ,level)
 	}
+
 	return REDIS_OK;
 }
 int cellSetValueUpward(cube *_cube, cell *_cell) {
-	slice* _slice;
-	_slice = sliceBuild(_cube);
+	slice* _slice = sliceBuild(_cube);
+	//redisLog(REDIS_WARNING,"Done build slice");
 	sliceAddCell(_slice, _cell);
+	//redisLog(REDIS_WARNING,"Done add cell");
 	int res;
-	res = sliceSetValueUpward(_slice);
+	res = sliceSetValueUpward(_cube, _slice);
+	//redisLog(REDIS_WARNING,"Done sliceSetValueUpward");
 	sliceRelease(_slice);
 	return res;
 }
-int sliceSetValueUpward(slice *_slice) {
+cell* cellBuildEmpty(cube* _cube ){
+	sds space = sdsempty();
+	space = sdsMakeRoomFor( space, cellStructSizeDin( *_cube->nr_dim ) );
+	cell *_cell = (cell*) space;
+	initCellDin(_cell , space); setCellNrDims(_cell,*_cube->nr_dim);
+	return _cell;
+}
+int cellRecompute(cube *_cube,cell* _cell){
+	//get formula
+	//execute it
+	return REDIS_OK;
+}
+int sliceSetValueUpward(cube *_cube,slice *_slice) {
 	//Init Slice
-	sliceResetElemntsCurrentPosition(_slice);
+	sliceResetElementsCurrentPosition(_slice);
+	cell *_cell = cellBuildEmpty(_cube );
 	while(1){
+		for( uint32_t i =0; i <_slice->nr_dim; ++i){
+			elements* el = getSliceElement(_slice, i);
+			setCellIdx(_cell, i, el->curr_elem);
+		}
+		if ( REDIS_OK != compute_index(_cube , _cell) ) {
+			return REDIS_ERR;
+		}
+		cellRecompute(_cube, _cell);
+		int slice_level  = 0;
+
+		cellRelease(_cell ); // FIXME: Move before the real exit
 		return REDIS_OK;
 	}
+
 	return REDIS_ERR;
 }
 /*

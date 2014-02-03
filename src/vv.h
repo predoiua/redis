@@ -92,7 +92,7 @@ typedef struct {
 #define setSliceElement(_sl,_idx,_elem) do { \
 		*(_sl->ptr + _idx )= (elements*)_elem; \
 } while(0);
-#define getSliceElement(_sl,_idx)  (elements*)(_sl->ptr + _idx )
+#define getSliceElement(_sl,_idx)  (elements*)(*(_sl->ptr + _idx ))
 
 
 #endif

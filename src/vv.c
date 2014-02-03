@@ -163,7 +163,7 @@ int set_value_with_response(redisClient *c, void *data, cell *_cell, cell_val *_
 	}
 	return REDIS_OK;
 }
-int buildCubeObj(redisClient *c, robj *cube_code, cube *pc ){
+int cubeBuild(redisClient *c, robj *cube_code, cube *pc ){
 	robj* c_cube = lookupKeyRead(c->db, cube_code);
 	if (c_cube == NULL ){
 		addReplyError(c,"Invalid cube code");
@@ -172,7 +172,7 @@ int buildCubeObj(redisClient *c, robj *cube_code, cube *pc ){
 	initCube(pc, c_cube->ptr);
 	return REDIS_OK;
 }
-int releaseCubeObj(cube *pc ){
+int cubeRelease(cube *pc ){
 	return REDIS_OK;
 }
 int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
@@ -197,14 +197,14 @@ int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 int releaseCubeDataObj(cube_data *cube_data ){
 	return REDIS_OK;
 }
-cell* buildCellObjFromClientDin(redisClient *c, cube* cube ){
+cell* cellBuildFromClient(redisClient *c, cube* cube ){
 	sds space = sdsempty();
 	space = sdsMakeRoomFor( space, cellStructSizeDin( *cube->nr_dim ) );
 	cell *_cell = (cell*) space;
 	initCellDin(_cell , space); setCellNrDims(_cell,*cube->nr_dim);
 
 	if ( REDIS_OK != decode_cell_idx(c, _cell) ) {
-		releaseCellObjDin(_cell);
+		cellRelease(_cell);
 		addReplyError(c,"Fail to compute  cell index");
 		return NULL;
 	}
@@ -215,7 +215,7 @@ cell* buildCellObjFromClientDin(redisClient *c, cube* cube ){
 	return _cell;
 }
 
-int releaseCellObjDin(cell *_cell ){
+int cellRelease(cell *_cell ){
 	sdsfree( (sds)_cell );
 	_cell = NULL;
 	return REDIS_OK;
@@ -242,10 +242,10 @@ void vvset(redisClient *c) {
 
 	// Build all required object
 	cube cube;
-	if ( REDIS_OK !=  buildCubeObj(c, c->argv[1], &cube) ) return;
+	if ( REDIS_OK !=  cubeBuild(c, c->argv[1], &cube) ) return;
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
-	cell *cell = buildCellObjFromClientDin(c, &cube);
+	cell *cell = cellBuildFromClient(c, &cube);
 	if ( cell == NULL ) return;
 //==========
 
@@ -275,8 +275,8 @@ void vvset(redisClient *c) {
     cellSetValueUpward(&cube, cell);
     setDeferredMultiBulkLength(c, replylen, nr_writes);
     //Clear
-    releaseCellObjDin(cell);
-    releaseCubeObj(&cube);
+    cellRelease(cell);
+    cubeRelease(&cube);
     releaseCubeDataObj(&cube_data);
 
 
@@ -285,10 +285,10 @@ void vvget(redisClient *c) {
 //=== Boilerplate code
 	// Build all required object
 	cube cube;
-	if ( REDIS_OK !=  buildCubeObj(c, c->argv[1], &cube) ) return;
+	if ( REDIS_OK !=  cubeBuild(c, c->argv[1], &cube) ) return;
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
-	cell *cell = buildCellObjFromClientDin(c, &cube);
+	cell *cell = cellBuildFromClient(c, &cube);
 	if ( cell == NULL ) return;
 
 

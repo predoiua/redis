@@ -10,12 +10,15 @@ void vvget(redisClient *c);
 int write_cell_response(redisClient *c, cell *_cell, cell_val *_cell_val, long* nr_writes);
 int set_value_with_response(redisClient *c, void* data, cell *_cell, cell_val *_cell_val, long *nr_writes  );
 
-int buildCubeObj(redisClient *c, robj *cube_code, cube *pc );
-int releaseCubeObj(cube *pc );
+int cubeBuild(redisClient *c, robj *cube_code, cube *pc );
+int cubeRelease(cube *pc );
+
 int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data );
 int releaseCubeDataObj(cube_data *cube_data );
-cell* buildCellObjFromClientDin(redisClient *c, cube *_cube );
-int releaseCellObjDin(cell *_cell );
+
+cell* cellBuildFromClient(redisClient *c, cube *_cube );
+cell* cellBuildEmpty(cube* _cube );
+int   cellRelease(cell *_cell );
 
 robj* build_key(robj* cube, sds ending);
 void replace_store(redisDb *db,robj *key, sds store);
@@ -41,6 +44,6 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 //		);
 
 int cellSetValueUpward(cube *_cube, cell *_cell);
-int sliceSetValueUpward(slice *_slice);
+int sliceSetValueUpward(cube *_cube, slice *_slice);
 
 #endif

@@ -28,12 +28,17 @@ int get_cube_value_at_index(sds data, size_t idx, cell_val* value);
 int is_same_value(double old_value, double new_value);
 
 //vvcp fct
+slice* sliceBuild(cube *_cube);
+int    sliceRelease(slice* _slice);
+int    sliceAddCell(slice* _slice, cell *_cell);
+
 cube* diBuild(redisClient *c, sds cube_code, int dim, int di);
-void diRelease(cube* di);
-int diIsSimple(cube* di);
+void  diRelease(cube* di);
+int   diIsSimple(cube* di);
 
 int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
 		, cube_data* cube_data
+		, slice* _slice
 		, int curr_dim  // Algorithm parameters
 		, long* nr_writes // How many result has been written to client
 		);
@@ -43,7 +48,7 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 //		,int curr_dim
 //		);
 
-int cellSetValueUpward(cube *_cube, cell *_cell);
+//int cellSetValueUpward(cube *_cube, cell *_cell);
 int sliceSetValueUpward(cube *_cube, slice *_slice);
 
 #endif

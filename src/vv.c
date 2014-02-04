@@ -232,7 +232,6 @@ int cellRelease(cell *_cell ){
  * 2. Do value spreading. ( bear hold in mind :) )
  */
 void vvset(redisClient *c) {
-
 	long double target=0.;
 	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
 		addReplyError(c,"Fail read cell value as a double");
@@ -248,6 +247,7 @@ void vvset(redisClient *c) {
 	cell *cell = cellBuildFromClient(c, &cube);
 	if ( cell == NULL ) return;
 //==========
+	slice* _slice = sliceBuild(&cube);
 
 	//redisLog(REDIS_WARNING, "Cell flat index :%zu", cell.idx);
     // Response
@@ -268,13 +268,17 @@ void vvset(redisClient *c) {
 
     cellSetValueDownward(c, &cube, cell, &cv
     		, &cube_data
+    		,_slice
     		,  0  // Algorithm parameters
     		, &nr_writes // How many result has been written to client
     		);
 
-    cellSetValueUpward(&cube, cell);
+	int res = sliceSetValueUpward(&cube, _slice);
+	//redisLog(REDIS_WARNING,"Done sliceSetValueUpward");
+
     setDeferredMultiBulkLength(c, replylen, nr_writes);
     //Clear
+	sliceRelease(_slice);
     cellRelease(cell);
     cubeRelease(&cube);
     releaseCubeDataObj(&cube_data);

@@ -138,28 +138,32 @@ int sliceRelease(slice* _slice){
 }
 // First index with them minimum level
 int elementResetCurrentPosition(elements* _el) {
-	int32_t curr_level = INT32_MAX;
 	int res = REDIS_ERR;
+	int32_t at_level = getElementsCurrLevel(_el);
 	for(int32_t i=0; i < _el->nr_elem; ++i){
 		int32_t level = getElementsElement(_el, i);
-		if ( level > 0 ) {
-			if ( level < curr_level ) {
-				curr_level = level;
-				_el->curr_elem = i;
-				res = REDIS_OK;
-			}
+		if ( level == at_level ) {
+			_el->curr_elem = i;
+			res = REDIS_OK;
 		}
 	}
 	return res;
 }
 
 
-int sliceResetElementsLevel(slice *_slice, uint32_t up_to) {
+int sliceResetElementsCurrLevel(slice *_slice, uint32_t up_to) {
 	for(uint32_t i =0; i< up_to; ++i){
 		elements* el = getSliceElement(_slice, i);
 		el->curr_level = 0;
-		//if ( REDIS_OK != elementResetCurrentPosition(el) )
-		//	return REDIS_ERR;
+	}
+	return REDIS_OK;
+}
+
+int sliceResetElementsCurrElement(slice *_slice, uint32_t up_to) {
+	for(uint32_t i =0; i< up_to; ++i){
+		elements* el = getSliceElement(_slice, i);
+		if ( REDIS_OK != elementResetCurrentPosition(el) )
+			return REDIS_ERR;
 	}
 	return REDIS_OK;
 }
@@ -214,77 +218,78 @@ int cellRecompute(cube *_cube,cell* _cell){
 	//execute it
 	return REDIS_OK;
 }
-// Return the index with  elemens.current level<= level <= max_level
-int elementNextCurrElement(elements* _el, int32_t max_level){
+// Return the index at the same level
+int elementNextCurrElement(elements* _el){
 	int32_t curr_level = getElementsCurrLevel(_el);
-	int32_t temp_level = INT32_MAX;
-	int32_t temp_index = INT32_MAX;
 	// Search for something at same level
 	for( int32_t i = _el->curr_elem + 1; i< _el->nr_elem; ++i){
-	//for( int32_t i = _el->curr_elem ; i< _el->nr_elem; ++i){ // TEST: Just to try an infinite loop.
 		int32_t level = getElementsElement(_el, i);
 		if  ( level == curr_level ) {
-			//redisLog(REDIS_WARNING, "(ok exit)Old Index :%d New Index:%d", (int)_el->curr_elem, (int)i );
 			setElementCurrElement(_el, i );
 			return REDIS_OK;
 		}
-//		if  ( curr_level < level && level <= max_level ) {
-//			if ( (level == temp_level && i < temp_index) ||  ( level < temp_level) ) {
-//				temp_level = level;
-//				temp_index = i;
-//			}
-//		}
 	}
-	// Search at a higher level
-	for( int32_t i =  0; i< _el->nr_elem; ++i){
-		int32_t level = getElementsElement(_el, i);
-		if  ( curr_level < level && level <= max_level ) {
-			if ( (level == temp_level && i < temp_index) ||  ( level < temp_level) ) {
-				temp_level = level;
-				temp_index = i;
-			}
-		}
-	}
-	if ( INT32_MAX == temp_level) {
-		return REDIS_ERR;
-	}
-	//redisLog(REDIS_WARNING, "Old Index :%d New Index:%d", (int)_el->curr_elem, (int)temp_index );
-	setElementCurrElement(_el, temp_index);
-	return REDIS_OK;
+	return REDIS_ERR;
 }
 int sliceRecomputeLevel(cube *_cube,slice *_slice){
+
 	static int nr_tot_level = 0;
+
 	sds s = sdsempty();
 	for(int i=0; i < _slice->nr_dim; ++i ){
     	elements* el = getSliceElement(_slice, i);
 		s = sdscatprintf(s,"%d ", el->curr_level );
 	}
-	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s", ++nr_tot_level, s );
+	redisLog(REDIS_WARNING, " Number of cycles:%d Level:%s", ++nr_tot_level, s );
 	sdsfree(s);
+
+	cell *_cell = cellBuildEmpty(_cube );
+	sliceResetElementsCurrElement(_slice, _slice->nr_dim);
+	while(1){
+
+		// Build initial cell based on element.curr_element
+		for( uint32_t i =0; i <_slice->nr_dim; ++i){
+			elements* el = getSliceElement(_slice, i);
+			setCellIdx(_cell, i, el->curr_elem);
+		}
+		if ( REDIS_OK != compute_index(_cube , _cell) ) {
+			return REDIS_ERR;
+		}
+		// Recompute cell
+		cellRecompute(_cube, _cell);
+	   // Made one change in slice.elements ( advance one index )
+		for(uint32_t curr_dim = 0; ; ) {
+			elements* el = getSliceElement(_slice, curr_dim);
+			if( REDIS_OK == elementNextCurrElement(el) ) {
+				// Now I have a new cell address as curr_elem in slice
+				break;
+			} else {
+				// if last dimension ...
+				if( (_slice->nr_dim - 1) == curr_dim ) {
+					//I have done all the possible combination. Exit
+					cellRelease(_cell );
+					return REDIS_OK;
+				} else {
+					elementResetCurrentPosition(el);
+					++curr_dim;
+				}
+			}
+		}
+	}
+
 	return REDIS_OK;
 }
 int sliceSetValueUpward(cube *_cube,slice *_slice) {
 
 	//Init Slice
-	sliceResetElementsLevel(_slice, _slice->nr_dim);
+	sliceResetElementsCurrLevel(_slice, _slice->nr_dim);
 	// loop invariants
 	uint32_t curr_dim = 0;
 	int slice_level  = 1;
 	int slice_max_level = 3;//FIXME
 	while(1){
 
-//		// Build initial cell based on element.curr_element
-//		for( uint32_t i =0; i <_slice->nr_dim; ++i){
-//			elements* el = getSliceElement(_slice, i);
-//			setCellIdx(_cell, i, el->curr_elem);
-//		}
-//		if ( REDIS_OK != compute_index(_cube , _cell) ) {
-//			return REDIS_ERR;
-//		}
-		// Recompute cell
-//		cellRecompute(_cube, _cell);
 		sliceRecomputeLevel(_cube,_slice);
-		int nr_elem_full = 0;
         // Made one change in slice.elements ( advance one index )
         while (1) {
         	elements* el = getSliceElement(_slice, curr_dim);
@@ -293,7 +298,7 @@ int sliceSetValueUpward(cube *_cube,slice *_slice) {
         		if ( el->curr_level < slice_level ) {
             		// Now I have a new cell address as curr_elem in slice
 					++el->curr_level;
-					sliceResetElementsLevel(_slice, curr_dim);
+					sliceResetElementsCurrLevel(_slice, curr_dim);
 					curr_dim = 0;
 					break;
         		} else {
@@ -310,21 +315,12 @@ int sliceSetValueUpward(cube *_cube,slice *_slice) {
         				++slice_level;
         				curr_dim = 0;
         			} else {
+        				// SUCCESS !! - Normal exit
         				return REDIS_OK;
         			}
         		} else {
         			++curr_dim;
         		}
-//        		++nr_elem_full;
-//				if ( nr_elem_full == _slice->nr_dim ) {
-//					// No more valid combination
-//					return REDIS_OK;
-//        		} else {
-//                    ++curr_dim;
-//                    if ( curr_dim >=_slice->nr_dim ) {
-//                    	curr_dim = 0;
-//                    }
-//        		}
         	}
         }
 	}

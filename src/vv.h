@@ -62,11 +62,13 @@ typedef struct {
 typedef struct {
 	int32_t	nr_elem;
 	int32_t	curr_elem;  // An index < nr_elem
-	int32_t	curr_level; // at what level I should be
+	int32_t	curr_level; // at what level I am
+	int32_t max_level;  // Highest level on this dimension
 	int32_t	*elems;
 } elements;
 #define getElementsSize(nr_elem)  (sizeof(elements) + nr_elem * sizeof(int32_t) )
 #define getElementsCurrLevel(_el)  _el->curr_level;
+#define getElementsMaxLevel(_el)  _el->max_level;
 #define initElements(_el,_ptr) do { \
     _el->elems = (int32_t *) ( (char*)_ptr + sizeof(elements)  ); \
 } while(0);

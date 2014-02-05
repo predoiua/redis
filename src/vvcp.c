@@ -98,6 +98,14 @@ slice* sliceBuild(cube *_cube){
 		sds dim_space = sdsnewlen(NULL,getElementsSize(nr_di));
 		elements* el=(elements*)dim_space; initElements(el, dim_space);
 		setElementsNrElem(el,nr_di);
+		//FIXME: Set some max level values
+		if (i == 0){
+			el->max_level = 3;
+		} else if (i == 1){
+			el->max_level = 3;
+		} else if (i == 2){
+			el->max_level = 2;
+		}
 		for(uint32_t j=0; j< nr_di; ++j) {
 			setElementsElement(el, j, ELEMENT_DEF_LEVEL);
 		}
@@ -146,11 +154,12 @@ int elementResetCurrentPosition(elements* _el) {
 }
 
 
-int sliceResetElementsCurrentPosition(slice *_slice ) {
-	for(uint32_t i =0; i<_slice->nr_dim; ++i){
+int sliceResetElementsLevel(slice *_slice, uint32_t up_to) {
+	for(uint32_t i =0; i< up_to; ++i){
 		elements* el = getSliceElement(_slice, i);
-		if ( REDIS_OK != elementResetCurrentPosition(el) )
-			return REDIS_ERR;
+		el->curr_level = 0;
+		//if ( REDIS_OK != elementResetCurrentPosition(el) )
+		//	return REDIS_ERR;
 	}
 	return REDIS_OK;
 }
@@ -194,12 +203,12 @@ cell* cellBuildEmpty(cube* _cube ){
 	return _cell;
 }
 int cellRecompute(cube *_cube,cell* _cell){
-	static int i = 0;
+	static int nr_tot = 0;
 	sds s = sdsempty();
 	for(int i=0; i < _cell->nr_dim; ++i ){
 		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
 	}
-	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s", ++i, s );
+	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s", ++nr_tot, s );
 	sdsfree(s);
 	//get formula
 	//execute it
@@ -243,48 +252,79 @@ int elementNextCurrElement(elements* _el, int32_t max_level){
 	setElementCurrElement(_el, temp_index);
 	return REDIS_OK;
 }
+int sliceRecomputeLevel(cube *_cube,slice *_slice){
+	static int nr_tot_level = 0;
+	sds s = sdsempty();
+	for(int i=0; i < _slice->nr_dim; ++i ){
+    	elements* el = getSliceElement(_slice, i);
+		s = sdscatprintf(s,"%d ", el->curr_level );
+	}
+	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s", ++nr_tot_level, s );
+	sdsfree(s);
+	return REDIS_OK;
+}
 int sliceSetValueUpward(cube *_cube,slice *_slice) {
 
 	//Init Slice
-	sliceResetElementsCurrentPosition(_slice);
+	sliceResetElementsLevel(_slice, _slice->nr_dim);
 	// loop invariants
-	int slice_level  = 0;
-	cell *_cell = cellBuildEmpty(_cube );
+	uint32_t curr_dim = 0;
+	int slice_level  = 1;
+	int slice_max_level = 3;//FIXME
 	while(1){
 
-		// Build initial cell based on element.curr_element
-		for( uint32_t i =0; i <_slice->nr_dim; ++i){
-			elements* el = getSliceElement(_slice, i);
-			setCellIdx(_cell, i, el->curr_elem);
-		}
-		if ( REDIS_OK != compute_index(_cube , _cell) ) {
-			return REDIS_ERR;
-		}
+//		// Build initial cell based on element.curr_element
+//		for( uint32_t i =0; i <_slice->nr_dim; ++i){
+//			elements* el = getSliceElement(_slice, i);
+//			setCellIdx(_cell, i, el->curr_elem);
+//		}
+//		if ( REDIS_OK != compute_index(_cube , _cell) ) {
+//			return REDIS_ERR;
+//		}
 		// Recompute cell
-		cellRecompute(_cube, _cell);
-
+//		cellRecompute(_cube, _cell);
+		sliceRecomputeLevel(_cube,_slice);
+		int nr_elem_full = 0;
         // Made one change in slice.elements ( advance one index )
-        for(uint32_t curr_dim = 0; ; ) {
+        while (1) {
         	elements* el = getSliceElement(_slice, curr_dim);
-        	if( REDIS_OK == elementNextCurrElement(el, slice_level) ) {
-        		// Now I have a new cell address as curr_elem in slice
-        		break;
-        	} else {
-        		// if last dimension ...
-        		if( (_slice->nr_dim - 1) == curr_dim ) {
-                    if ( slice_level < 2 ) { // FIXME: Add cube level
-                    	// at this slice level we can't find any more valid combinations
-                        curr_dim = 0;
-                        ++slice_level;
-                    } else {
-                        //I have done all the possible combination. Exit
-                    	cellRelease(_cell );
-                        return REDIS_OK;
-                     }
+        	//if( REDIS_OK == elementNextCurrElement(el, slice_level) ) {
+        	if(    el->curr_level < el->max_level -1 ){
+        		if ( el->curr_level < slice_level ) {
+            		// Now I have a new cell address as curr_elem in slice
+					++el->curr_level;
+					sliceResetElementsLevel(_slice, curr_dim);
+					curr_dim = 0;
+					break;
         		} else {
-        			elementResetCurrentPosition(el);
-                    ++curr_dim;
+        			if ( curr_dim == _slice->nr_dim  - 1) {
+        				++slice_level;
+        				curr_dim = 0;
+        			} else {
+						++curr_dim;
+        			}
         		}
+        	} else {
+        		if( curr_dim == _slice->nr_dim - 1) {
+        			if ( slice_level < slice_max_level ) {
+        				++slice_level;
+        				curr_dim = 0;
+        			} else {
+        				return REDIS_OK;
+        			}
+        		} else {
+        			++curr_dim;
+        		}
+//        		++nr_elem_full;
+//				if ( nr_elem_full == _slice->nr_dim ) {
+//					// No more valid combination
+//					return REDIS_OK;
+//        		} else {
+//                    ++curr_dim;
+//                    if ( curr_dim >=_slice->nr_dim ) {
+//                    	curr_dim = 0;
+//                    }
+//        		}
         	}
         }
 	}

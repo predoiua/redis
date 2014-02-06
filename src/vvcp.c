@@ -167,15 +167,20 @@ int sliceResetElementsCurrElement(slice *_slice, uint32_t up_to) {
 	}
 	return REDIS_OK;
 }
-
+//FIME : I need somehow cube id ..
+int32_t getLevel(
+		//cube *_cube, maybe cube_idx
+		uint32_t dim_idx, size_t di_idx){
+	return 1;
+}
 int sliceAddCell(slice* _slice, cell *_cell){
-	redisLog(REDIS_WARNING,"Slice address :%p", (void*)_slice);
-	redisLog(REDIS_WARNING,"Slice number of dimensions:%d", _slice->nr_dim);
+	//redisLog(REDIS_WARNING,"Slice address :%p", (void*)_slice);
+	//redisLog(REDIS_WARNING,"Slice number of dimensions:%d", _slice->nr_dim);
 
 	for(uint32_t i =0; i<_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
 		size_t di_idx = getCellDiIndex(_cell, i);
-		int32_t level = 1; // FIXME. Get the real level
+		int32_t level = getLevel(i, di_idx); // FIXME. Get the real level
 		//redisLog(REDIS_WARNING,"Set at dim:%d dim index : %d at element address: %p", (int)i, (int)di_idx , (void*)el);
 		setElementsElement(el, di_idx ,level)
 	}
@@ -244,7 +249,10 @@ int sliceRecomputeLevel(cube *_cube,slice *_slice){
 	sdsfree(s);
 
 	cell *_cell = cellBuildEmpty(_cube );
-	sliceResetElementsCurrElement(_slice, _slice->nr_dim);
+	if ( REDIS_ERR == sliceResetElementsCurrElement(_slice, _slice->nr_dim) ){
+		// No valid combination for this levels combination
+		return REDIS_OK;
+	}
 	while(1){
 
 		// Build initial cell based on element.curr_element

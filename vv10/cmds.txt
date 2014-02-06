@@ -1,5 +1,5 @@
-vvset CUBE_SALE 2 2 0 124.4
-vvget CUBE_SALE 2 2 0
+vvset cube_sale 2 2 0 124.4
+vvget cube_sale 2 2 0
 
 SET k value
 GET k

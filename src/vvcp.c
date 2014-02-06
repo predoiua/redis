@@ -4,30 +4,29 @@
 #include "vv.h"
 #include "vvfct.h"
 
-cube* diBuild(redisClient *c, sds cube_code, int dim, int di){
-	sds s = sdsnew("children_");
-	s = sdscatsds(s, cube_code);
-	s = sdscatprintf(s,"_%d_%d",  dim, di);
+di_children* diBuild(redisClient *c, int cube, int dim, int di){
+	sds s = sdsempty();
+	s = sdscatprintf(s,"%d_%d_%d_children", cube, dim, di);
 	robj *so = createObject(REDIS_STRING,s);
 	robj* redis_data = lookupKeyRead(c->db, so);
 	//redisLog(REDIS_WARNING, "Data address :%s", s);
 
 	decrRefCount(so);
 	if (redis_data == NULL ){
-		addReplyErrorFormat(c, "Invalid key code for di: cube_code:?: dim :%d di:%d", dim, di);
+		addReplyErrorFormat(c, "Invalid key code for di: cube:%d, dim :%d ,di:%d", cube, dim, di);
 		return NULL;
 	}
 
-	cube* res = (cube*)sdsnewlen(NULL, sizeof(cube));
-	initCube(res, redis_data->ptr);
+	di_children* res = (di_children*)sdsnewlen(NULL, sizeof(di_children));
+	initDiChildren(res, redis_data->ptr);
 	return res;
 }
 
-void diRelease(cube* di){
+void diRelease(di_children* di){
 	sdsfree( (sds)di);
 }
-int diIsSimple(cube* di){
-	if ( 0 == *di->nr_dim )
+int diIsSimple(di_children* di){
+	if ( 0 == *di->nr_child )
 		return 1;
 	else
 		return 0;
@@ -39,7 +38,7 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 		, long* nr_writes // How many result has been written to client
 		){
 	int di_idx = getCellDiIndex(_cell, curr_dim);
-	cube *di = diBuild(c, c->argv[1]->ptr, curr_dim, di_idx);
+	di_children *di = diBuild(c, (int)*_cube->numeric_code, curr_dim, di_idx);
 	if ( NULL == di ){
 		return REDIS_ERR;
 	}
@@ -60,9 +59,9 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 		//redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
 		//set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
 		cell_val new_val;
-		new_val.val = _cell_val->val / *di->nr_dim;
-		for(int i=0; i< *di->nr_dim;++i){
-			uint32_t new_di_idx = getCubeNrDi(di,i);
+		new_val.val = _cell_val->val / *di->nr_child;
+		for(int i=0; i< *di->nr_child;++i){
+			uint32_t new_di_idx = getDiChildrenChildId(di,i);
 			uint32_t old_di_idx = getCellDiIndex(_cell, curr_dim);
 			// Instead of create a new cell, reuse the old one
 			setCellIdx(_cell,curr_dim, new_di_idx);

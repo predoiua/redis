@@ -87,18 +87,15 @@ vvcube      c1         3           20        3      44
 */
 void vvcube(redisClient *c) {
 	long long cell_nr = 1; // Nr cell in the cube
-	long long nr_dim = 0; // Nr of dimension in cube
+	long long cube_code_number = 0; // A numerical code for cube
 	//
 	// Compute some useful info
 	//
-	if (getLongLongFromObject(c->argv[2], &nr_dim) != REDIS_OK) {
+	if (getLongLongFromObject(c->argv[2], &cube_code_number) != REDIS_OK) {
 		addReplyError(c,"Second argument( number of dim) is not a number");
 		return;
 	}
-	if ( c->argc != nr_dim + 3){
-		addReplyError(c,"Difference between number of parameters in command and value of nr_dim");
-		return;
-	}
+	long long nr_dim = c->argc - 3;
 	sds cube_dim_store = sdsempty();
 	// Build cube dim store
 	cube_dim_store = sdsgrowzero(cube_dim_store, sizeof(uint32_t)*(nr_dim + 1) );

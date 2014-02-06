@@ -39,24 +39,43 @@ typedef struct {
 	void *ptr;
 } cube_data;
 
-
 typedef struct {
-	uint32_t *nr_dim;// size = 1
+	uint32_t *numeric_code;// an numerical identifier for cube
+	uint32_t *nr_dim;//
 	uint32_t *nr_di; // size = nr_dim. nr of di in each dim
 } cube;
 
-#define initCube(_cube,_ptr) do { \
-    _cube->nr_dim = (uint32_t *)_ptr; \
-    _cube->nr_di = (uint32_t *)((uint32_t *)_ptr + 1); \
+#define initCube(_str,_ptr) do { \
+	_str->numeric_code 	= (uint32_t *)_ptr; \
+	_str->nr_dim 		= (uint32_t *)((uint32_t *)_ptr + 1); \
+    _str->nr_di 		= (uint32_t *)((uint32_t *)_ptr + 2); \
 } while(0);
 
-#define setCubeNrDims(_cube,_nr_dims) do { \
-		*(_cube->nr_dim ) = (uint32_t)_nr_dims; \
+#define setCubeNrDims(_str,_nr_dims) do { \
+		*(_str->nr_dim ) = (uint32_t)_nr_dims; \
 } while(0);
-#define setCubeNrDi(_cube,_dim_idx,_nr_di) do { \
-		*(_cube->nr_di + _dim_idx )= (uint32_t)_nr_di; \
+#define setCubeNrDi(_str,_dim_idx,_nr_di) do { \
+		*(_str->nr_di + _dim_idx )= (uint32_t)_nr_di; \
 } while(0);
-#define getCubeNrDi(_cube,_dim_idx)  (*(_cube->nr_di + _dim_idx ))
+#define getCubeNrDi(_str,_dim_idx)  (*(_str->nr_di + _dim_idx ))
+
+typedef struct {
+	uint32_t *nr_child;// nr of children
+	uint32_t *child_id; // array of dimension item indexes
+} di_children;
+
+#define initDiChildren(_str,_ptr) do { \
+    _str->nr_child = (uint32_t *)_ptr; \
+    _str->child_id = (uint32_t *)((uint32_t *)_ptr + 1); \
+} while(0);
+
+#define setDiChildrenNrChildren(_str,nr_child) do { \
+		*(_str->nr_child ) = (uint32_t)nr_child; \
+} while(0);
+#define setDiChildrenChildId(_str,_idx,_di) do { \
+		*(_str->child_id + _idx )= (uint32_t)_di; \
+} while(0);
+#define getDiChildrenChildId(_str,_idx)  (*(_str->child_id + _idx ))
 
 // Negative values = error/un-initialized
 typedef struct {

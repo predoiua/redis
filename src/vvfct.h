@@ -32,9 +32,9 @@ slice* sliceBuild(cube *_cube);
 int    sliceRelease(slice* _slice);
 int    sliceAddCell(slice* _slice, cell *_cell);
 
-cube* diBuild(redisClient *c, sds cube_code, int dim, int di);
-void  diRelease(cube* di);
-int   diIsSimple(cube* di);
+di_children* diBuild(redisClient *c, int cube, int dim, int di);
+void  diRelease(di_children* di);
+int   diIsSimple(di_children* di);
 
 int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
 		, cube_data* cube_data

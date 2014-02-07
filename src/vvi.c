@@ -140,7 +140,7 @@ int compute_index(cube* _cube,  cell* _cell ) {
         uint32_t idx_dis = getCellDiIndex(_cell,i);
         uint32_t nr_elem = getCubeNrDi(_cube,i);
         if ( nr_elem <= idx_dis ) {
-        	redisLog(REDIS_WARNING,"Index for dimension %d : %d must be < %d \n",i, idx_dis, nr_elem);
+        	redisLog(REDIS_WARNING,"Index for dimension %d : %d must be < %d",i, idx_dis, nr_elem);
         	return REDIS_ERR;
         }
         k = k * nr_elem + idx_dis;

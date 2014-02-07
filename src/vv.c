@@ -39,7 +39,7 @@ int decode_cell_idx(redisClient *c, cell *cell){
 			return REDIS_ERR;
 		}
 		setCellIdx(cell, i, temp_nr);
-		//redisLog(REDIS_WARNING,"Index :%d Value before : %lld ,after write %zu\n", i, temp_nr, getCellDiIndex(cell,i) );
+		//redisLog(REDIS_WARNING,"Index :%d Value before : %lld ,after write %zu", i, temp_nr, getCellDiIndex(cell,i) );
 	}
 	return REDIS_OK;
 }
@@ -47,7 +47,7 @@ int decode_cell_idx(redisClient *c, cell *cell){
 
 int set_simple_cell_value_at_index(sds data, size_t idx, double value) {
 	if ( sdslen(data) < idx ){
-    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) ! \n",sdslen(data), idx);
+    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) !",sdslen(data), idx);
     	return REDIS_ERR;
 	}
 	return set_simple_cell_value_at_index_(data, idx, value);
@@ -98,19 +98,22 @@ void vvcube(redisClient *c) {
 	long long nr_dim = c->argc - 3;
 	sds cube_dim_store = sdsempty();
 	// Build cube dim store
-	cube_dim_store = sdsgrowzero(cube_dim_store, sizeof(uint32_t)*(nr_dim + 1) );
+	cube_dim_store = sdsgrowzero(cube_dim_store, getCubeSize(nr_dim)  );
 	cube _cube;
-	initCube((&_cube), cube_dim_store);
-	setCubeNrDims((&_cube), nr_dim);
+	initCube(&_cube, cube_dim_store);
+	setCubeNrDims(&_cube, nr_dim);
+	setCubeNumericCode(&_cube, cube_code_number);
 	long long temp_nr;// Working variable
 	for(int i=0; i < nr_dim; ++i ){
 		if (getLongLongFromObject(c->argv[3+i], &temp_nr) != REDIS_OK) {
 			addReplyError(c,"Number of elements in dimension is not a number");
 			return;
 		}
-		setCubeNrDi((&_cube),i, temp_nr);
+		setCubeNrDi(&_cube,i, temp_nr);
 		cell_nr *= temp_nr;
+		//redisLog(REDIS_WARNING,"Total cells: %d cells , %d number di.",(uint32_t)cell_nr, (uint32_t)temp_nr);
 	}
+
 	// Build cube
 	sds cube_data_store = sdsempty();
 	cube_data_store = sdsgrowzero(cube_data_store, cell_nr * CELL_BYTES );
@@ -177,14 +180,14 @@ int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
 	robj* c_data = lookupKeyRead(c->db, cube_data_key);
 	decrRefCount(cube_data_key);
 	if (c_data == NULL){
-		addReplyError(c,"Cube data is missing");
+		redisLog(REDIS_WARNING,"Cube data is missing");
 		return REDIS_ERR;
 	}
 	//redisLog(REDIS_WARNING, "Data address :%p", c_data->ptr);
 
 	cube_data->ptr = c_data->ptr;
 	if ( NULL == c_data->ptr ) {
-		addReplyError(c,"No space ( null pointer) in Cube data");
+		redisLog(REDIS_WARNING,"No space ( null pointer) in Cube data");
 		return REDIS_ERR;
 
 	}
@@ -202,11 +205,11 @@ cell* cellBuildFromClient(redisClient *c, cube* cube ){
 
 	if ( REDIS_OK != decode_cell_idx(c, _cell) ) {
 		cellRelease(_cell);
-		addReplyError(c,"Fail to compute  cell index");
+		redisLog(REDIS_WARNING,"Fail to compute  cell index");
 		return NULL;
 	}
 	if ( REDIS_OK != compute_index(cube , _cell) ) {
-		addReplyError(c,"Fail to compute  flat index");
+		redisLog(REDIS_WARNING,"Fail to compute  flat index");
 		return NULL;
 	}
 	return _cell;
@@ -239,14 +242,23 @@ void vvset(redisClient *c) {
 	// Build all required object
 	cube cube;
 	if ( REDIS_OK !=  cubeBuild(c, c->argv[1], &cube) ) return;
+	redisLog(REDIS_WARNING, "Cube numberic_code:%d nr dim:%d nr di in 1st:%d", (int) *cube.numeric_code, (int) *cube.nr_dim, (int) *cube.nr_di);
+	for(int i =0 ; i< *cube.nr_dim; ++i){
+		redisLog(REDIS_WARNING, "Nr di:%d or %d", (int) *(cube.nr_di + i), getCubeNrDi((&cube),i));
+
+	}
 	cube_data cube_data;
 	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
 	cell *cell = cellBuildFromClient(c, &cube);
-	if ( cell == NULL ) return;
+	if ( cell == NULL ) {
+		addReplyError(c,"Fail to build cell");
+		return;
+	}
+
 //==========
 	slice* _slice = sliceBuild(&cube);
 
-	//redisLog(REDIS_WARNING, "Cell flat index :%zu", cell.idx);
+
     // Response
     //addReplyLongLong(c, 1);
     void *replylen = NULL;
@@ -270,7 +282,8 @@ void vvset(redisClient *c) {
     		, &nr_writes // How many result has been written to client
     		);
 
-	int res = sliceSetValueUpward(&cube, _slice);
+	//int res =
+	sliceSetValueUpward(&cube, _slice);
 	//redisLog(REDIS_WARNING,"Done sliceSetValueUpward");
 
     setDeferredMultiBulkLength(c, replylen, nr_writes);

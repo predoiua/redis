@@ -45,17 +45,21 @@ typedef struct {
 	uint32_t *nr_di; // size = nr_dim. nr of di in each dim
 } cube;
 
+#define getCubeSize(nr_elem)  ( (nr_elem + 2 ) * sizeof(uint32_t) )
 #define initCube(_str,_ptr) do { \
-	_str->numeric_code 	= (uint32_t *)_ptr; \
-	_str->nr_dim 		= (uint32_t *)((uint32_t *)_ptr + 1); \
-    _str->nr_di 		= (uint32_t *)((uint32_t *)_ptr + 2); \
+	(_str)->numeric_code 	= (uint32_t *)_ptr; \
+	(_str)->nr_dim 		= (uint32_t *)((uint32_t *)_ptr + 1); \
+	(_str)->nr_di 		= (uint32_t *)((uint32_t *)_ptr + 2); \
 } while(0);
 
 #define setCubeNrDims(_str,_nr_dims) do { \
-		*(_str->nr_dim ) = (uint32_t)_nr_dims; \
+		*((_str)->nr_dim ) = (uint32_t)_nr_dims; \
+} while(0);
+#define setCubeNumericCode(_str,_numeric_code) do { \
+		*((_str)->numeric_code ) = (uint32_t)_numeric_code; \
 } while(0);
 #define setCubeNrDi(_str,_dim_idx,_nr_di) do { \
-		*(_str->nr_di + _dim_idx )= (uint32_t)_nr_di; \
+		*((_str)->nr_di + _dim_idx )= (uint32_t)_nr_di; \
 } while(0);
 #define getCubeNrDi(_str,_dim_idx)  (*(_str->nr_di + _dim_idx ))
 
@@ -86,20 +90,9 @@ typedef struct {
 	int32_t	*elems;
 } elements;
 #define getElementsSize(nr_elem)  (sizeof(elements) + nr_elem * sizeof(int32_t) )
-#define getElementsCurrLevel(_el)  _el->curr_level;
-#define getElementsMaxLevel(_el)  _el->max_level;
 #define initElements(_el,_ptr) do { \
     _el->elems = (int32_t *) ( (char*)_ptr + sizeof(elements)  ); \
 } while(0);
-
-#define setElementsNrElem(_el,_nr_elem) do { \
-		_el->nr_elem = (int32_t)_nr_elem; \
-} while(0);
-
-#define setElementCurrElement(_el, elem ) do { \
-		_el->curr_elem = elem; \
-} while(0);
-
 #define setElementsElement(_el,_idx,_elem) do { \
 		*(_el->elems + _idx ) = (int32_t)_elem; \
 } while(0);

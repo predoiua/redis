@@ -30,7 +30,7 @@ int is_same_value(double old_value, double new_value);
 //vvcp fct
 slice* sliceBuild(cube *_cube);
 int    sliceRelease(slice* _slice);
-int    sliceAddCell(slice* _slice, cell *_cell);
+int    sliceAddCell(redisClient *c, cube* _cube, slice* _slice, cell *_cell);
 
 di_children* diBuild(redisClient *c, int cube, int dim, int di);
 void  diRelease(di_children* di);

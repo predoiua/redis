@@ -33,4 +33,8 @@ typedef struct formula_struct{
     double      (*eval)   (struct formula_struct *_formula, void* _cell);
 
 } formula;
+
+formula* formulaNew(
+        void *_cube, int _dim_idx, int _di_idx,
+        const char* _program);
 #endif

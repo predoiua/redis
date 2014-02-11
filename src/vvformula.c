@@ -17,6 +17,7 @@ formula* formulaNew(
         const char* _program) {
     formula* res = malloc(sizeof(formula));
     //Init fuction
+    res->eval = eval;
     res->free = free_formula;
     res->getDimIdx = getDimIdx;
     res->getDimItemIdx = getDimItemIdx;

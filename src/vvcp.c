@@ -3,6 +3,7 @@
 
 #include "vv.h"
 #include "vvfct.h"
+#include "vvformula.h"
 
 
 di_children* diBuild(redisClient *c, int cube, int dim, int di){
@@ -236,10 +237,17 @@ int cellRecompute(cube *_cube,cell* _cell){
 	for(int i=0; i < _cell->nr_dim; ++i ){
 		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
 	}
-	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s", ++nr_tot, s );
+
 	sdsfree(s);
 	//get formula
 	//execute it
+	formula *f = formulaNew(
+			 //void *_cube, int _dim_idx, int _di_idx, const char* _program
+			_cube, 0, 0, "10 + 9"
+			);
+
+	double val = f->eval(f, _cell);
+	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s, value:%f ", ++nr_tot, s, val );
 	return REDIS_OK;
 }
 // Return the index at the same level

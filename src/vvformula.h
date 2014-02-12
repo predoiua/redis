@@ -8,6 +8,7 @@ typedef struct formula;
 #include "VVEvalInit.h"
 
 typedef struct formula_struct{
+	void 							*db;
     void                            *cube;
     int                             dim_idx;
     int                             di_idx;
@@ -36,6 +37,7 @@ typedef struct formula_struct{
 } formula;
 
 formula* formulaNew(
+		void *_db,
         void *_cube, int _dim_idx, int _di_idx,
         const char* _program);
 #endif

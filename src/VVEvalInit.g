@@ -107,6 +107,8 @@ prog [struct formula_struct *_formula]
 	tableLocalVariable = hash_table_new(MODE_COPY);
 	int val = _formula->dummy(_formula);
 	printf("From dummy i've got : \%d", val);
+	int dim = _formula->getDimIdx(_formula,"measure_sales");
+	printf("Idx for measure_sales is : \%d", dim);
 }
 :
 		(assignment[1])*

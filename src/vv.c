@@ -283,7 +283,8 @@ void vvset(redisClient *c) {
     		);
 
 	//int res =
-	sliceSetValueUpward(&cube, _slice);
+
+	sliceSetValueUpward(c->db, &cube, _slice);
 	//redisLog(REDIS_WARNING,"Done sliceSetValueUpward");
 
     setDeferredMultiBulkLength(c, replylen, nr_writes);

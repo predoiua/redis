@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "vvformula.h"
-
+#include "vv.h"
 
 static int         free_formula   (struct formula_struct *_formula);
 static double      eval   (struct formula_struct *_formula,void* _cell);
@@ -20,6 +20,7 @@ static double      getValueByIds (struct formula_struct *_formula,int nr_dim, in
 static int         dummy  (struct formula_struct *_formula);
 
 formula* formulaNew(
+		void *_db,
         void *_cube, int _dim_idx, int _di_idx,
         const char* _program) {
     formula* res = malloc(sizeof(formula));
@@ -32,6 +33,7 @@ formula* formulaNew(
     res->getValueByIds = getValueByIds;
     res->dummy = dummy;
     //Link with the rest of the application
+    res->db  = _db;
     res->cube = _cube;
     res->dim_idx = _dim_idx;
     res->di_idx = _di_idx;
@@ -112,6 +114,65 @@ static int			free_formula   (struct formula_struct *_formula ) {
 }
 
 static int         getDimIdx      (struct formula_struct *_formula,char* dim_code){
+	int idx = -1;
+	// Sample key : "100_dim_code_to_idx"
+	cube    *_cube = (cube*) _formula->cube;
+	redisDb *_db = (redisDb*)_formula->db;
+	//Generate the key
+	sds s = sdsempty();
+	s = sdscatprintf(s,"%d_dim_code_to_idx", (int)*_cube->numeric_code);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* o = lookupKeyRead(_db, so);
+	//Release the key
+	decrRefCount(so);
+
+	if (o == NULL) {
+		//I don't find the ok
+		return idx;
+	}
+	//Field
+	sds s_field=  sdsnewlen(dim_code, strlen(dim_code));
+	robj *field = createObject(REDIS_STRING,s_field);
+
+	int ret;
+	if (o->encoding == REDIS_ENCODING_ZIPLIST) {
+		printf( "Zip Encoding ");
+		unsigned char *vstr = NULL;
+		unsigned int vlen = UINT_MAX;
+		long long vll = LLONG_MAX;
+
+		ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
+		if (ret < 0) {
+			printf( "Didn't find the key :%s:", s_field);
+			//addReply(c, shared.nullbulk);
+		} else {
+			if (vstr) {
+				// THIS IS THE REAL EXIT
+				idx = (int) (* (int*)vstr);
+				//addReplyBulkCBuffer(c, vstr, vlen);
+			} else {
+				printf( "Result as char long long");
+				//idx = (int) vll;
+				//addReplyBulkLongLong(c, vll);
+			}
+		}
+
+	} else if (o->encoding == REDIS_ENCODING_HT) {
+		printf( "HT Encoding ");
+		robj *value;
+		ret = hashTypeGetFromHashTable(o, field, &value);
+		if (ret < 0) {
+			//addReply(c, shared.nullbulk);
+		} else {
+			idx = (int) (* (int*)value->ptr);
+			//addReplyBulk(c, value);
+		}
+//	    } else {
+//	        redisPanic("Unknown hash encoding");
+	}
+
+	decrRefCount(field);
+    return idx;
     /*
     DDimension* dim = _cube->getChild(QString(cod_dim));
     if (dim == NULL) {
@@ -120,10 +181,10 @@ static int         getDimIdx      (struct formula_struct *_formula,char* dim_cod
     }
     return dim->getPosition();
     */
-    return 0;
 }
 
 static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, char* di_code){
+	// "100_0_di_code_to_idx"
     /*
     DDimension* d;
     //Conventie: -2 = dimensiunea curenta

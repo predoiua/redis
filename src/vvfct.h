@@ -49,6 +49,6 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 //		);
 
 //int cellSetValueUpward(cube *_cube, cell *_cell);
-int sliceSetValueUpward(cube *_cube, slice *_slice);
+int sliceSetValueUpward(redisDb *_db, cube *_cube, slice *_slice);
 
 #endif

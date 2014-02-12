@@ -1,4 +1,8 @@
+
+
+#include "redis.h"
 #include <string.h>
+#include <stdio.h>
 
 #include "vvformula.h"
 
@@ -12,6 +16,9 @@ static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, 
 static double      getValueByDimItemId (struct formula_struct *_formula,int di_idx);
 static double      getValueByIds (struct formula_struct *_formula,int nr_dim, int* dim, int* dim_item);
 
+
+static int         dummy  (struct formula_struct *_formula);
+
 formula* formulaNew(
         void *_cube, int _dim_idx, int _di_idx,
         const char* _program) {
@@ -23,7 +30,7 @@ formula* formulaNew(
     res->getDimItemIdx = getDimItemIdx;
     res->getValueByDimItemId = getValueByDimItemId;
     res->getValueByIds = getValueByIds;
-
+    res->dummy = dummy;
     //Link with the rest of the application
     res->cube = _cube;
     res->dim_idx = _dim_idx;
@@ -82,7 +89,7 @@ formula* formulaNew(
     res->treePsrInit	= VVEvalInitNew(res->nodes);
 
     //Completeaza valori precalculate in AST
-    res->treePsrInit->prog(res->treePsrInit);
+    res->treePsrInit->prog(res->treePsrInit, res);
     //Pentru calcularea propriu zisa a expresiu
     res->treePsr	= VVEvalNew(res->nodes);
 
@@ -200,3 +207,7 @@ static double      eval   (struct formula_struct *_formula, void* _cell){
     return val;
 }
 
+static int         dummy  (struct formula_struct *_formula) {
+	printf("Hello. I am a dummy function!");
+	return 100;
+}

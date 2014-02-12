@@ -1,0 +1,27 @@
+#+AUTHOR:Adrian Predoiu
+
+* Source files
+
+** Antlr generator
+antlr-3.3-complete.jar = generate .h and .c from .g files
+
+** Antlr runtime
+- all antlr3*.h/c function in /src folder
+
+** Grammars
+VVExpr.g = used to generate an AST 
+VVEvalInit.g = precalculate some values and store them in AST
+VVEval.g = evaluate an AST
+
+** Formula
+- vvformula.h/c = all information for build/run AST
+- hashtable.h/c = implementation of a simple hashtable. used by evaluator
+- debug.h = used by hash table implementation
+- vvformulastore.h/c = a static storage for AST
+
+** Redis custom Function implementation 
+- vv.h
+- vv.c
+
+** Algorithm Implementation
+- vvcp.h/c

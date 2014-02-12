@@ -8,6 +8,7 @@ options {
 
 @header {
 	#include "hashtable.h"
+	#include "vvformula.h"
 //	void setGetDimIdx(pGetDimIdx getDimIdx);
 //	void setGetDimItemIdx(pGetDimItemIdx getDimItemIdx);
 }
@@ -101,9 +102,11 @@ int initDimensionItem(int dim,pANTLR3_BASE_TREE tt) {
 
 }
 
-prog 
+prog [struct formula_struct *_formula]
 @init {
 	tableLocalVariable = hash_table_new(MODE_COPY);
+	int val = _formula->dummy(_formula);
+	printf("From dummy i've got : \%d", val);
 }
 :
 		(assignment[1])*

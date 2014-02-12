@@ -32,6 +32,7 @@ typedef struct formula_struct{
     int         (*free)   (struct formula_struct *_formula);
     double      (*eval)   (struct formula_struct *_formula, void* _cell);
 
+    int         (*dummy)   (struct formula_struct *_formula);
 } formula;
 
 formula* formulaNew(

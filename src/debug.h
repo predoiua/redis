@@ -1,7 +1,8 @@
 #ifndef _DEBUG_H
 #define _DEBUG_H
 
-#ifdef DEBUG
+#define VVDEBUG 1
+#ifdef VVDEBUG
 
 #include<stdio.h>
 

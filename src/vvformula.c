@@ -5,7 +5,8 @@
 #include <stdio.h>
 
 #include "vvformula.h"
-#include "vv.h"
+#include "vvdb.h"
+#include "debug.h"
 
 static int         free_formula   (struct formula_struct *_formula);
 static double      eval   (struct formula_struct *_formula,void* _cell);
@@ -33,13 +34,12 @@ formula* formulaNew(
     res->getValueByIds = getValueByIds;
     res->dummy = dummy;
     //Link with the rest of the application
-    res->db  = _db;
-    res->cube = _cube;
     res->dim_idx = _dim_idx;
     res->di_idx = _di_idx;
 
 
     //Init members
+    res->vvdb = NULL;
     res->program = NULL;
     res->input = NULL;
     res->lex = NULL;
@@ -51,6 +51,13 @@ formula* formulaNew(
     res->treePsr = NULL;
     res->treePsrInit = NULL;
 
+    INFO("Before vvdb build.");
+    res->vvdb = vvdbNew( (redisDb*)_db, (cube*)_cube);
+    if ( res->vvdb == NULL ) {
+    	INFO("ERROR: Fail to build vvdb");
+    	res->free(res);
+    	return NULL;
+    }
     // Build parser
     res->program = strdup(_program); // create a copy
     // pt 3.3 - 3.4
@@ -109,70 +116,14 @@ static int			free_formula   (struct formula_struct *_formula ) {
     if(_formula->lex    != NULL) _formula->lex    ->free(_formula->lex);
     if(_formula->input  != NULL) _formula->input  ->free (_formula->input);
 
+    if( _formula->vvdb != NULL ) ((vvdb*)_formula->vvdb)->free((vvdb*)_formula->vvdb );
     if( _formula->program != NULL ) free(_formula->program);
     return 0;
 }
 
 static int         getDimIdx      (struct formula_struct *_formula,char* dim_code){
-	int idx = -1;
-	// Sample key : "100_dim_code_to_idx"
-	cube    *_cube = (cube*) _formula->cube;
-	redisDb *_db = (redisDb*)_formula->db;
-	//Generate the key
-	sds s = sdsempty();
-	s = sdscatprintf(s,"%d_dim_code_to_idx", (int)*_cube->numeric_code);
-	robj *so = createObject(REDIS_STRING,s);
-	robj* o = lookupKeyRead(_db, so);
-	//Release the key
-	decrRefCount(so);
-
-	if (o == NULL) {
-		//I don't find the ok
-		return idx;
-	}
-	//Field
-	sds s_field=  sdsnewlen(dim_code, strlen(dim_code));
-	robj *field = createObject(REDIS_STRING,s_field);
-
-	int ret;
-	if (o->encoding == REDIS_ENCODING_ZIPLIST) {
-		printf( "Zip Encoding ");
-		unsigned char *vstr = NULL;
-		unsigned int vlen = UINT_MAX;
-		long long vll = LLONG_MAX;
-
-		ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
-		if (ret < 0) {
-			printf( "Didn't find the key :%s:", s_field);
-			//addReply(c, shared.nullbulk);
-		} else {
-			if (vstr) {
-				// THIS IS THE REAL EXIT
-				idx = (int) (* (int*)vstr);
-				//addReplyBulkCBuffer(c, vstr, vlen);
-			} else {
-				printf( "Result as char long long");
-				//idx = (int) vll;
-				//addReplyBulkLongLong(c, vll);
-			}
-		}
-
-	} else if (o->encoding == REDIS_ENCODING_HT) {
-		printf( "HT Encoding ");
-		robj *value;
-		ret = hashTypeGetFromHashTable(o, field, &value);
-		if (ret < 0) {
-			//addReply(c, shared.nullbulk);
-		} else {
-			idx = (int) (* (int*)value->ptr);
-			//addReplyBulk(c, value);
-		}
-//	    } else {
-//	        redisPanic("Unknown hash encoding");
-	}
-
-	decrRefCount(field);
-    return idx;
+	vvdb* _vvdb = (vvdb*)_formula->vvdb;
+	return _vvdb->getDimIdx(_vvdb, dim_code);
     /*
     DDimension* dim = _cube->getChild(QString(cod_dim));
     if (dim == NULL) {
@@ -184,8 +135,8 @@ static int         getDimIdx      (struct formula_struct *_formula,char* dim_cod
 }
 
 static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, char* di_code){
-	// "100_0_di_code_to_idx"
-    /*
+	vvdb* _vvdb = (vvdb*)_formula->vvdb;
+	return _vvdb->getDimItemIdx(_vvdb,dim_idx, di_code);    /*
     DDimension* d;
     //Conventie: -2 = dimensiunea curenta
     if ( -2 == dim ) {
@@ -263,7 +214,7 @@ static double      eval   (struct formula_struct *_formula, void* _cell){
     _formula->nodes   ->reset(_formula->nodes);
     _formula->treePsr ->reset(_formula->treePsr);
     double val;
-    val = _formula->treePsr->prog(_formula->treePsr, 0);
+    val = _formula->treePsr->prog(_formula->treePsr, _formula);
 
     return val;
 }

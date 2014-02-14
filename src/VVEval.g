@@ -7,8 +7,7 @@ options {
 }
 
 @header {
-//	#include "planning_formula/ParserConnection.h"
-	
+#include "vvformula.h"	
 }
 
 @members {
@@ -22,7 +21,7 @@ double variables[10];
 
 char rez[100];
 //Asta e o chestie interesanta:
-// Tot stoca in token valori. Adica sa fac o singura data decodificarea char in int
+// Pot stoca in token valori. Adica sa fac o singura data decodificarea char in int
 // si apoi sa folosesc rez precalculate.
 // printf("User1:d:\n",t->user1);
 // t->user1 = 101;
@@ -36,23 +35,17 @@ void fillRez(pANTLR3_BASE_TREE tt){
 	rez[c2 - c1 + 1] = '\0';
 }
 //In acest caz este un dim item.
-double getValoareDimItem(pANTLR3_BASE_TREE tt){
-    /*
-	if ( 0 == _getFCubeValueByDimItemId ) {
-		printf("Eroare. Accesorul din parser catre aplicatie nu a fost setat.");
-		return 0.;
-	}
+double getValoareDimItem(struct formula_struct *_formula,pANTLR3_BASE_TREE tt){
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	//printf("Tip token:\%d\n",t->user2);
 	//Variabila din cub.
 	if ( 1 == t->user2 ) {
-		return _getFCubeValueByDimItemId( t->user1 );
+		return _formula->getValueByDimItemId(_formula, t->user1);// _getFCubeValueByDimItemId( t->user1 );
 	} else if ( 2 == t->user2 ) {
 		return variables[ t->user1 ];
 	} else {
 		printf("Eroare: Nu cunosc tipull de variabila \%n in AST.\n", t->user2);
 	}
-	*/
 	return 0.;
 }
 //FLOATING_POINT_LITERAL
@@ -71,7 +64,7 @@ double getValoareInt(pANTLR3_BASE_TREE tt){
 	return (double)d;
 }
 //ASSIGN
-void slyAssign(pANTLR3_BASE_TREE tt, double val){
+void slyAssign(struct formula_struct *_formula, pANTLR3_BASE_TREE tt, double val){
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	variables[ t->user1 ] = val;
 	//fillRez(id);
@@ -80,32 +73,25 @@ void slyAssign(pANTLR3_BASE_TREE tt, double val){
 }
 
 //ACCESOR
-void		setDimension(pANTLR3_BASE_TREE id) {
+void		setDimension(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
 	pANTLR3_COMMON_TOKEN    t = id->getToken(id);
 	++nrDim;
 	dim_idx[nrDim] = t->user1; 
 }
-void		setDimensionItem(pANTLR3_BASE_TREE id) {
+void		setDimensionItem(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
 	pANTLR3_COMMON_TOKEN    t = id->getToken(id);
 	dim_item_idx[nrDim] = t->user1; 
 }
-double getValoareCell() {
-    /*
-	if ( 0 == _getFCubeValueByIds ) {
-		printf("Eroare initalizare AST :Accesorul _getFCubeValueByIds nu a foast setat \n");
-		return 0.;	
-	}
-	return _getFCubeValueByIds(nrDim,dim_idx,dim_item_idx);
-    */
-    return 0;
+double getValoareCell(struct formula_struct *_formula) {
+	return _formula->getValueByIds(_formula, nrDim, dim_idx, dim_item_idx);
 }
 
 }
 
-prog	[void* arg] returns [double value]:   
-		(assignment[1])*
-		(if_statement)*
-		e=expr
+prog	[struct formula_struct *_formula] returns [double value]:   
+		(assignment[_formula,1])*
+		(if_statement[_formula])*
+		e=expr[_formula]
         {
 			$value = e; 
 //			printf("Expreesie: \%f \n", e);
@@ -114,47 +100,47 @@ prog	[void* arg] returns [double value]:
 
     ;
 // Pentru valoarea conditei logice = 1 = true
-assignment[int cond] returns [ int value] :
-	^('=' id=ID ex=expr) 
+assignment[struct formula_struct *_formula,int cond] returns [ int value] :
+	^('=' id=ID ex=expr[_formula]) 
 	{
 			if (cond) {
-				slyAssign(id, ex);
+				slyAssign(_formula, id, ex);
 			}
 	}
 ;
-if_statement returns [int value] :
-		^(a=IF log=cond_logica a1=assignment[log] (a2=assignment[log-1])?)
+if_statement[struct formula_struct *_formula] returns [int value] :
+		^(a=IF log=cond_logica[_formula] a1=assignment[_formula, log] (a2=assignment[_formula, log-1])?)
 		{
 			;//printf("cond logica este: \%d \n",log);
 		}
 ;
 
-cond_logica returns [int value]:
-		 ^('==' a=expr b=expr)			{$value = (a == b)? 1 : 0;}
-		| ^('!=' a=expr b=expr)			{$value = (a != b)? 1 : 0;}
-		| ^('>' a=expr b=expr)			{$value = (a > b)? 1 : 0;}
-		| ^('<' a=expr b=expr)			{$value = (a < b)? 1 : 0;}
-		| ^('>=' a=expr b=expr)			{$value = (a >= b)? 1 : 0;}
-		| ^('<=' a=expr b=expr)			{$value = (a <= b)? 1 : 0;}
-		| ^('<>' a=expr b=expr)			{$value = (a != b)? 1 : 0;}	 
+cond_logica[struct formula_struct *_formula] returns [int value]:
+		 ^('==' a=expr[_formula] b=expr[_formula])			{$value = (a == b)? 1 : 0;}
+		| ^('!=' a=expr[_formula] b=expr[_formula])			{$value = (a != b)? 1 : 0;}
+		| ^('>' a=expr[_formula] b=expr[_formula])			{$value = (a > b)? 1 : 0;}
+		| ^('<' a=expr[_formula] b=expr[_formula])			{$value = (a < b)? 1 : 0;}
+		| ^('>=' a=expr[_formula] b=expr[_formula])			{$value = (a >= b)? 1 : 0;}
+		| ^('<=' a=expr[_formula] b=expr[_formula])			{$value = (a <= b)? 1 : 0;}
+		| ^('<>' a=expr[_formula] b=expr[_formula])			{$value = (a != b)? 1 : 0;}	 
 		{
 			
 		}
 ;
 
-expr returns [double value]:
-		^('+' a=expr b=expr)  {$value = a + b;}
-    |   ^('-' a=expr b=expr)  {$value = a - b;}   
-    |   ^('*' a=expr b=expr)  {$value = a * b;}
-    |   ^('/' a=expr b=expr)  {$value = a / b;}
-	|   ^(acc (dim dim_item)* )	
+expr[struct formula_struct *_formula] returns [double value]:
+		^('+' a=expr[_formula] b=expr[_formula])  {$value = a + b;}
+    |   ^('-' a=expr[_formula] b=expr[_formula])  {$value = a - b;}   
+    |   ^('*' a=expr[_formula] b=expr[_formula])  {$value = a * b;}
+    |   ^('/' a=expr[_formula] b=expr[_formula])  {$value = a / b;}
+	|   ^(acc[_formula] (dim[_formula] dim_item[_formula])* )	
 		{
 			//printf("Evaluez un acces complex.\n");
-			$value = getValoareCell();
+			$value = getValoareCell(_formula);
 		}
     |   ID 
         {
-			$value = getValoareDimItem($ID);
+			$value = getValoareDimItem(_formula, $ID);
 		}
     |   FLOATING_POINT_LITERAL 
 		{
@@ -165,19 +151,19 @@ expr returns [double value]:
 			$value = getValoareInt($INT);
 		}
     ;
-acc : '=>' 
+acc[struct formula_struct *_formula] : '=>' 
 		{
 			nrDim = -1;
 		}
 	;
-dim	: ID 
+dim[struct formula_struct *_formula]	: ID 
 	{
-		setDimension($ID);
+		setDimension(_formula, $ID);
 	}
 	;
-dim_item	: ID 
+dim_item[struct formula_struct *_formula]	: ID 
 	{
-		setDimensionItem($ID);
+		setDimensionItem(_formula, $ID);
 	}
 	;
 	

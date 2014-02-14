@@ -22,7 +22,9 @@ static int         dummy  (struct formula_struct *_formula);
 
 formula* formulaNew(
 		void *_db,
-        void *_cube, int _dim_idx, int _di_idx,
+        void *_cube,
+        void *_cell,
+        int _dim_idx,
         const char* _program) {
     formula* res = malloc(sizeof(formula));
     //Init fuction
@@ -35,7 +37,7 @@ formula* formulaNew(
     res->dummy = dummy;
     //Link with the rest of the application
     res->dim_idx = _dim_idx;
-    res->di_idx = _di_idx;
+    res->cell = _cell;
 
 
     //Init members
@@ -136,7 +138,8 @@ static int         getDimIdx      (struct formula_struct *_formula,char* dim_cod
 
 static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, char* di_code){
 	vvdb* _vvdb = (vvdb*)_formula->vvdb;
-	return _vvdb->getDimItemIdx(_vvdb,dim_idx, di_code);    /*
+	return _vvdb->getDimItemIdx(_vvdb,dim_idx, di_code);
+	/*
     DDimension* d;
     //Conventie: -2 = dimensiunea curenta
     if ( -2 == dim ) {
@@ -156,10 +159,12 @@ static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, 
     }
     return di->getPosition();
     */
-    return 0;
 }
 
-static double      getValueByDimItemId (struct formula_struct *_formula,int di_idx){
+static double      getValueByDimItemId (struct formula_struct *_formula, int di_idx){
+	vvdb* _vvdb = (vvdb*)_formula->vvdb;
+	cell* _cell = (cell*)_formula->cell;
+	return _vvdb->getValueByIds(_vvdb, _cell);
     /*
     DDimensionItem* di = _dim->getDimItem(dim_item);
     if (di == NULL) {
@@ -182,10 +187,10 @@ static double      getValueByDimItemId (struct formula_struct *_formula,int di_i
     }
     return cv.getDouble();
     */
-    return 0;
 }
 
 static double      getValueByIds (struct formula_struct *_formula,int nr_dim, int* dim, int* dim_item){
+    return 0;
 /*
     QList<int> idx(_idx);
     // !!! Atentie: este corect cu <=.
@@ -207,7 +212,6 @@ static double      getValueByIds (struct formula_struct *_formula,int nr_dim, in
     //qDebug() << "acces complex:" << idx << " val:" <<  cv.getDouble();
     return cv.getDouble();
 */
-    return 0;
 }
 
 static double      eval   (struct formula_struct *_formula, void* _cell){

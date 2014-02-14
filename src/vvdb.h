@@ -14,7 +14,6 @@
 typedef	struct vvdb_struct{
 	void							*db;
 	void                            *cube;
-
 	//void			(*setValue)    (struct vvdb_struct * _vvdb, double val);
 	// get a dimension index for a code
 	int 		(*getDimIdx)     	 		(struct vvdb_struct * _vvdb, char* dim_code);
@@ -22,8 +21,9 @@ typedef	struct vvdb_struct{
 	int 		(*getDimItemIdx)     		(struct vvdb_struct * _vvdb, int dim_idx, char* di_code);
 
 	// get
-    double      (*getValueByDimItemId) 		(struct vvdb_struct *_vvdb, int di_idx);
-    double      (*getValueByIds)			(struct vvdb_struct *_vvdb,	int nr_dim, int* dim, int* dim_item);
+    //double      (*getValueByDimItemId) 		(struct vvdb_struct *_vvdb, int di_idx);
+    //double      (*getValueByIds)			(struct vvdb_struct *_vvdb,	int nr_dim, int* dim, int* dim_item);
+	double      (*getValueByIds)			(struct vvdb_struct *_vvdb, void* _cell);
 
 	int (*free)     (struct vvdb_struct * _vvdb);
 } vvdb;

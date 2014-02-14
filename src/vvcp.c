@@ -247,6 +247,7 @@ int cellRecompute(redisDb *_db,cube *_cube,cell* _cell){
 			);
 
 	double val = f->eval(f, _cell);
+	f->free(f);
 	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s, value:%f ", ++nr_tot, s, val );
 	return REDIS_OK;
 }

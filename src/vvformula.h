@@ -9,8 +9,8 @@ typedef struct formula;
 
 typedef struct formula_struct{
 	void 							*vvdb;
+	void 							*cell;
     int                             dim_idx;
-    int                             di_idx;
     char                            *program;
 
     pANTLR3_INPUT_STREAM                input;
@@ -37,6 +37,8 @@ typedef struct formula_struct{
 
 formula* formulaNew(
 		void *_db,
-        void *_cube, int _dim_idx, int _di_idx,
+        void *_cube,
+        void *_cell,
+        int _dim_idx,
         const char* _program);
 #endif

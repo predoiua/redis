@@ -7,6 +7,8 @@
 static 	int  	vvdb_free     	(struct vvdb_struct * _vvdb);
 static 	int 	getDimIdx	  	(struct vvdb_struct * _vvdb, char* dim_code);
 static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_code);
+static	double  getValueByIds	(struct vvdb_struct *_vvdb, void* _cell);
+
 // Internal
 //static int cubeBuild(redisDb *_db, robj *_cube_code, cube *_cube );
 static int getIdFromHash (redisDb *_db, robj *hash_code, char* field_code);
@@ -27,6 +29,7 @@ vvdb* vvdbNew(void *_db, void* _cube) {
 	_vvdb->free 			= vvdb_free;
 	_vvdb->getDimIdx 		= getDimIdx;
 	_vvdb->getDimItemIdx	= getDimItemIdx;
+	_vvdb->getValueByIds	= getValueByIds;
 	// NULL initialization for members
 	_vvdb->db 		= NULL;
 	_vvdb->cube 	= NULL;
@@ -119,4 +122,10 @@ static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_c
 	idx = getIdFromHash( _db, so, di_code );
 	decrRefCount(so);
     return idx;
+}
+
+static	double  getValueByIds	(struct vvdb_struct *_vvdb, void* _cell) {
+	cell	*_c = (cell	*)_cell;
+
+	return 0.0;
 }

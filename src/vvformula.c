@@ -26,7 +26,9 @@ formula* formulaNew(
         void *_cell,
         int _dim_idx,
         const char* _program) {
-    formula* res = malloc(sizeof(formula));
+	formula* res = (formula*)sdsnewlen(NULL,sizeof(formula));
+
+    //formula* res = malloc(sizeof(formula));
     //Init fuction
     res->eval = eval;
     res->free = free_formula;
@@ -120,6 +122,8 @@ static int			free_formula   (struct formula_struct *_formula ) {
 
     if( _formula->vvdb != NULL ) ((vvdb*)_formula->vvdb)->free((vvdb*)_formula->vvdb );
     if( _formula->program != NULL ) free(_formula->program);
+	sdsfree((sds)_formula );
+	_formula = 0;
     return 0;
 }
 
@@ -162,9 +166,10 @@ static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, 
 }
 
 static double      getValueByDimItemId (struct formula_struct *_formula, int di_idx){
-	vvdb* _vvdb = (vvdb*)_formula->vvdb;
-	cell* _cell = (cell*)_formula->cell;
-	return _vvdb->getValueByIds(_vvdb, _cell);
+	return 0;
+//	vvdb* _vvdb = (vvdb*)_formula->vvdb;
+//	cell* _cell = (cell*)_formula->cell;
+//	return _vvdb->getValueByIds(_vvdb, _cell);
     /*
     DDimensionItem* di = _dim->getDimItem(dim_item);
     if (di == NULL) {

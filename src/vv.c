@@ -7,7 +7,7 @@
 #include "vv.h"
 #include "vvfct.h"
 #include "vvi.h"
-
+#include "vvdb.h"
 
 
 robj* build_key(robj* cube, sds ending){
@@ -45,17 +45,6 @@ int decode_cell_idx(redisClient *c, cell *cell){
 }
 
 
-int set_simple_cell_value_at_index(sds data, size_t idx, double value) {
-	if ( sdslen(data) < idx ){
-    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) !",sdslen(data), idx);
-    	return REDIS_ERR;
-	}
-	return set_simple_cell_value_at_index_(data, idx, value);
-}
-
-int get_cube_value_at_index(sds data, size_t idx, cell_val* value) {
-	return get_cube_value_at_index_(data,idx, value);
-}
 /*
  * It's not really necessary to have this command, but make further development easier
  * vvdim dim_code nr_di
@@ -118,8 +107,9 @@ void vvcube(redisClient *c) {
 	sds cube_data_store = sdsempty();
 	cube_data_store = sdsgrowzero(cube_data_store, cell_nr * CELL_BYTES );
 
-	robj* cube_dim_key = c->argv[1];
-	robj* cube_data_key = build_key(c->argv[1], CUBE_DATA_END);
+	robj	*cube_dim_key = c->argv[1];
+	sds 	s_key = sdscatprintf(sdsempty(), "%d_data", (int)*_cube.numeric_code);
+	robj	*cube_data_key = createObject(REDIS_STRING,s_key);
 
 	//
 	// Do db operations
@@ -153,13 +143,11 @@ int is_same_value(double old_value, double new_value) {
 	 return abs(old_value - new_value) < 0.00001 ? 1 : 0;
 }
 
-int set_value_with_response(redisClient *c, void *data, cell *_cell, cell_val *_cell_val, long *nr_writes  ) {
-	cell_val cv;
-	get_cube_value_at_index_(data, _cell->idx, &cv);
-	if ( ! is_same_value(cv.val, _cell_val->val) ) {
-		set_simple_cell_value_at_index(data, _cell->idx, _cell_val->val);
-		get_cube_value_at_index_(data,  _cell->idx, &cv); // Read again the new value
-		write_cell_response(c, _cell, &cv, nr_writes);
+int set_value_with_response(redisClient *c, vvdb *_vvdb, cell *_cell, long double _cell_val, long *nr_writes  ) {
+	cell_val *_cv = _vvdb->getCellValue(_vvdb,_cell);
+	if ( ! is_same_value(_cv->val, _cell_val) ) {
+		_cv->val = _cell_val;
+		write_cell_response(c, _cell, _cv, nr_writes);
 	}
 	return REDIS_OK;
 }
@@ -172,31 +160,7 @@ int cubeBuild(redisClient *c, robj *cube_code, cube *pc ){
 	initCube(pc, c_cube->ptr);
 	return REDIS_OK;
 }
-int cubeRelease(cube *pc ){
-	return REDIS_OK;
-}
-int buildCubeDataObj(redisClient *c, robj *cube_code, cube_data *cube_data ){
-	robj* cube_data_key = build_key(cube_code, CUBE_DATA_END);
-	robj* c_data = lookupKeyRead(c->db, cube_data_key);
-	decrRefCount(cube_data_key);
-	if (c_data == NULL){
-		redisLog(REDIS_WARNING,"Cube data is missing");
-		return REDIS_ERR;
-	}
-	//redisLog(REDIS_WARNING, "Data address :%p", c_data->ptr);
 
-	cube_data->ptr = c_data->ptr;
-	if ( NULL == c_data->ptr ) {
-		redisLog(REDIS_WARNING,"No space ( null pointer) in Cube data");
-		return REDIS_ERR;
-
-	}
-	//redisLog(REDIS_WARNING, "Value for data :%p from %p", *pdata, c_data->ptr);
-	return REDIS_OK;
-}
-int releaseCubeDataObj(cube_data *cube_data ){
-	return REDIS_OK;
-}
 cell* cellBuildFromClient(redisClient *c, cube* cube ){
 	sds space = sdsempty();
 	space = sdsMakeRoomFor( space, cellStructSizeDin( *cube->nr_dim ) );
@@ -226,11 +190,6 @@ int cellRelease(cell *_cell ){
    vvset cubecode di1 di2         dix value
    vvset c1 1 1 1 100.
  */
-/*
- * Algorithm:
- * 1. Somehow I must find a unique path(s) to the lowest level
- * 2. Do value spreading. ( bear hold in mind :) )
- */
 void vvset(redisClient *c) {
 	long double target=0.;
 	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
@@ -247,10 +206,14 @@ void vvset(redisClient *c) {
 		redisLog(REDIS_WARNING, "Nr di:%d or %d", (int) *(cube.nr_di + i), getCubeNrDi((&cube),i));
 
 	}
-	cube_data cube_data;
-	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
+	vvdb* _vvdb = vvdbNew(c->db, &cube);
+	if( NULL == _vvdb ){
+		addReplyError(c,"Missing data objects");
+		return;
+	}
+
 	cell *cell = cellBuildFromClient(c, &cube);
-	if ( cell == NULL ) {
+	if ( NULL == cell ) {
 		addReplyError(c,"Fail to build cell");
 		return;
 	}
@@ -258,65 +221,55 @@ void vvset(redisClient *c) {
 //==========
 	slice* _slice = sliceBuild(&cube);
 
-
     // Response
-    //addReplyLongLong(c, 1);
     void *replylen = NULL;
     long nr_writes = 0;
     replylen = addDeferredMultiBulkLength(c);
 
     // Actual work..
-    cell_val cv;
-    cv.val = target;
-    //set_value_with_response(c, cube_data.ptr, &cell, &cv, &nr_writes );
-//    nt setValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
-//    		, cube_data* cube_data
-//    		, int curr_dim  // Algorithm parameters
-//    		, long* nr_writes // How many result has been written to client
-//    		);
-
-    cellSetValueDownward(c, &cube, cell, &cv
-    		, &cube_data
+    cellSetValueDownward(c, &cube, cell, target
+    		, _vvdb
     		,_slice
     		,  0  // Algorithm parameters
     		, &nr_writes // How many result has been written to client
     		);
 
-	//int res =
-
 	sliceSetValueUpward(c->db, &cube, _slice);
-	//redisLog(REDIS_WARNING,"Done sliceSetValueUpward");
-
     setDeferredMultiBulkLength(c, replylen, nr_writes);
+
     //Clear
 	sliceRelease(_slice);
     cellRelease(cell);
-    cubeRelease(&cube);
-    releaseCubeDataObj(&cube_data);
-
-
+    _vvdb->free(_vvdb);
 }
 void vvget(redisClient *c) {
 //=== Boilerplate code
 	// Build all required object
 	cube cube;
 	if ( REDIS_OK !=  cubeBuild(c, c->argv[1], &cube) ) return;
-	cube_data cube_data;
-	if ( REDIS_OK !=  buildCubeDataObj(c, c->argv[1], &cube_data) ) return;
-	cell *cell = cellBuildFromClient(c, &cube);
-	if ( cell == NULL ) return;
-
+	vvdb* _vvdb = vvdbNew(c->db, &cube);
+	if( NULL == _vvdb ){
+		addReplyError(c,"Missing data objects");
+		return;
+	}
+	cell *_cell = cellBuildFromClient(c, &cube);
+	if ( NULL == _cell ) {
+		addReplyError(c,"Fail to build cell");
+		return;
+	}
 
 //==========
-	cell_val target;
-	get_cube_value_at_index(cube_data.ptr, cell->idx, &target);
-
+	cell_val* target = _vvdb->getCellValue(_vvdb, _cell);
 	// Response
 //	addReplyDouble(c, target.val);
     void *replylen = NULL;
     long cell_resp = 0;
     replylen = addDeferredMultiBulkLength(c);
-    write_cell_response(c, cell, &target, &cell_resp);
+    write_cell_response(c, _cell, target, &cell_resp);
     setDeferredMultiBulkLength(c, replylen, cell_resp);
+
+    //Clear
+    cellRelease(_cell);
+    _vvdb->free(_vvdb);
 
 }

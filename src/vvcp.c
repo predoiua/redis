@@ -4,6 +4,7 @@
 #include "vv.h"
 #include "vvfct.h"
 #include "vvformula.h"
+#include "vvdb.h"
 
 
 di_children* diBuild(redisClient *c, int cube, int dim, int di){
@@ -34,8 +35,8 @@ void diRelease(di_children* di){
 //	else
 //		return 0;
 //}
-int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _cell_val
-		, cube_data* cube_data
+int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _val
+		, vvdb*  _vvdb
 		, slice* _slice
 		, int curr_dim  // Algorithm parameters
 		, long* nr_writes // How many result has been written to client
@@ -46,12 +47,12 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 	if ( ( *_cube->nr_dim - 1 )!= curr_dim ) {
 		//redisLog(REDIS_WARNING, "Is Simple: move to :%d", curr_dim + 1);
 		int next_dim = curr_dim + 1;
-		cellSetValueDownward(c, _cube, _cell, _cell_val, cube_data
+		cellSetValueDownward(c, _cube, _cell, _val, _vvdb
 				,_slice
 				, next_dim, nr_writes);
 	} else {
-		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
-		set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
+		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, (double)_val);
+		set_value_with_response(c, _vvdb, _cell, _val, nr_writes);
 		sliceAddCell(c,_cube, _slice, _cell);
 	}
 	di_children *di = diBuild(c, (int)*_cube->numeric_code, curr_dim, di_idx);
@@ -60,9 +61,8 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 	//if ( ! diIsSimple(di) ) {
 	if ( NULL != di ){
 		//redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
-		//set_value_with_response(c, cube_data->ptr, _cell, _cell_val, nr_writes);
-		cell_val new_val;
-		new_val.val = _cell_val->val / *di->nr_child;
+		long double new_val;
+		new_val = _val / *di->nr_child;
 		for(int i=0; i< *di->nr_child;++i){
 			uint32_t new_di_idx = getDiChildrenChildId(di,i);
 			uint32_t old_di_idx = getCellDiIndex(_cell, curr_dim);
@@ -74,7 +74,7 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, cell_val* _ce
 				return REDIS_ERR;
 			}
 			//Go one level downward
-			cellSetValueDownward(c, _cube, _cell, &new_val, cube_data
+			cellSetValueDownward(c, _cube, _cell, new_val, _vvdb
 						, _slice
 						, curr_dim, nr_writes);
 			//revert to old index
@@ -242,12 +242,11 @@ int cellRecompute(redisDb *_db,cube *_cube,cell* _cell){
 	//execute it
 	formula *f = formulaNew(
 			_db,
-			 //void *_cube, int _dim_idx, int _di_idx, const char* _program
-			_cube, 0, 0, "10 + 9"
+			 //void *_cube, _cell, int _dim_idx, , const char* _program
+			_cube, _cell, 0, "10 + 9"
 			);
-
 	double val = f->eval(f, _cell);
-	f->free(f);
+	//f->free(f);
 	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s, value:%f ", ++nr_tot, s, val );
 	return REDIS_OK;
 }

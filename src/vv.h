@@ -8,7 +8,6 @@
  * Basic structure related with cube operation.
  * Can be included in any file.
  */
-#define CUBE_DATA_END "_data"
 
 // Number of bytes per cube cell
 #define CELL_BYTES sizeof(cell_val)
@@ -35,9 +34,9 @@ typedef struct{
 
 #define getCellDiIndex(_cell, _dim) (*(_cell->idxs + _dim ))
 
-typedef struct {
-	void *ptr;
-} cube_data;
+//typedef struct {
+//	void *ptr;
+//} cube_data;
 
 typedef struct {
 	uint32_t *numeric_code;// an numerical identifier for cube

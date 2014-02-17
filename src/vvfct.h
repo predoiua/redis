@@ -15,6 +15,7 @@ int cubeBuild(redisClient *c, robj *cube_code, cube *pc );
 
 cell* cellBuildFromClient(redisClient *c, cube *_cube );
 cell* cellBuildEmpty(cube* _cube );
+cell* cellBuildCell(cell* _cell );
 int   cellRelease(cell *_cell );
 
 robj* build_key(robj* cube, sds ending);
@@ -25,7 +26,7 @@ int is_same_value(double old_value, double new_value);
 //vvcp fct
 slice* sliceBuild(cube *_cube);
 int    sliceRelease(slice* _slice);
-int    sliceAddCell(redisClient *c, cube* _cube, slice* _slice, cell *_cell);
+int    sliceAddCell(vvdb *_vvdb, cube* _cube, slice* _slice, cell *_cell);
 
 di_children* diBuild(redisClient *c, int cube, int dim, int di);
 void  diRelease(di_children* di);

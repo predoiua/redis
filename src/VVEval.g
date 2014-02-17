@@ -40,7 +40,9 @@ double getValoareDimItem(struct formula_struct *_formula,pANTLR3_BASE_TREE tt){
 	//printf("Tip token:\%d\n",t->user2);
 	//Variabila din cub.
 	if ( 1 == t->user2 ) {
-		return _formula->getValueByDimItemId(_formula, t->user1);// _getFCubeValueByDimItemId( t->user1 );
+		double d = _formula->getValueByDimItemId(_formula, t->user1);// _getFCubeValueByDimItemId( t->user1 );
+		//printf("Cube cube accessor: Dim Item:\%d Get value:\%f\n",t->user1, d);
+		return d;
 	} else if ( 2 == t->user2 ) {
 		return variables[ t->user1 ];
 	} else {
@@ -83,7 +85,7 @@ void		setDimensionItem(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
 	dim_item_idx[nrDim] = t->user1; 
 }
 double getValoareCell(struct formula_struct *_formula) {
-	return _formula->getValueByIds(_formula, nrDim, dim_idx, dim_item_idx);
+	return _formula->getValueByIds(_formula, nrDim + 1, dim_idx, dim_item_idx);
 }
 
 }
@@ -94,7 +96,7 @@ prog	[struct formula_struct *_formula] returns [double value]:
 		e=expr[_formula]
         {
 			$value = e; 
-//			printf("Expreesie: \%f \n", e);
+			//printf("Result: \%f \n", e);
 		}
 
 

@@ -6,6 +6,7 @@
 
 #include "vvformula.h"
 #include "vvdb.h"
+#include "vvfct.h"
 #include "debug.h"
 
 static int         free_formula   (struct formula_struct *_formula);
@@ -55,7 +56,7 @@ formula* formulaNew(
     res->treePsr = NULL;
     res->treePsrInit = NULL;
 
-    INFO("Before vvdb build.");
+    //INFO("Before vvdb build.");
     res->vvdb = vvdbNew( (redisDb*)_db, (cube*)_cube);
     if ( res->vvdb == NULL ) {
     	INFO("ERROR: Fail to build vvdb");
@@ -63,7 +64,8 @@ formula* formulaNew(
     	return NULL;
     }
     // Build parser
-    res->program = strdup(_program); // create a copy
+    //res->program = strdup(_program); // create a copy
+    res->program = sdsnew(_program);
     // pt 3.3 - 3.4
     res->input = antlr3StringStreamNew( (pANTLR3_UINT8)res->program,
                                    (ANTLR3_UINT32)ANTLR3_ENC_8BIT,
@@ -120,8 +122,15 @@ static int			free_formula   (struct formula_struct *_formula ) {
     if(_formula->lex    != NULL) _formula->lex    ->free(_formula->lex);
     if(_formula->input  != NULL) _formula->input  ->free (_formula->input);
 
-    if( _formula->vvdb != NULL ) ((vvdb*)_formula->vvdb)->free((vvdb*)_formula->vvdb );
-    if( _formula->program != NULL ) free(_formula->program);
+    if( _formula->vvdb != NULL ) {
+    	((vvdb*)_formula->vvdb)->free((vvdb*)_formula->vvdb );
+    	_formula->vvdb = NULL;
+    }
+    if( _formula->program != NULL ) {
+    	//free(_formula->program);
+    	sdsfree((sds)_formula->program );
+    	_formula->program = 0;
+    }
 	sdsfree((sds)_formula );
 	_formula = 0;
     return 0;
@@ -141,8 +150,12 @@ static int         getDimIdx      (struct formula_struct *_formula,char* dim_cod
 }
 
 static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, char* di_code){
+	int real_dim = dim_idx;
+    if ( -2 == dim_idx ) {//By Convention: -2 = current dimension
+    	real_dim = _formula->dim_idx;
+    }
 	vvdb* _vvdb = (vvdb*)_formula->vvdb;
-	return _vvdb->getDimItemIdx(_vvdb,dim_idx, di_code);
+	return _vvdb->getDimItemIdx(_vvdb,real_dim, di_code);
 	/*
     DDimension* d;
     //Conventie: -2 = dimensiunea curenta
@@ -166,10 +179,20 @@ static int         getDimItemIdx  (struct formula_struct *_formula,int dim_idx, 
 }
 
 static double      getValueByDimItemId (struct formula_struct *_formula, int di_idx){
-	return 0;
-//	vvdb* _vvdb = (vvdb*)_formula->vvdb;
-//	cell* _cell = (cell*)_formula->cell;
-//	return _vvdb->getValueByIds(_vvdb, _cell);
+	vvdb* _vvdb = (vvdb*)_formula->vvdb;
+	cell* _cell = cellBuildCell((cell*)_formula->cell); //_formula->cell;
+	setCellIdx(_cell, _formula->dim_idx, di_idx );
+	cell_val* cv = _vvdb->getCellValue(_vvdb, _cell);
+
+//	// Print some details about what i'm doing
+//	sds s = sdsempty();
+//	for(int i=0; i < _cell->nr_dim; ++i ){
+//		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+//	}
+//	redisLog(REDIS_WARNING, "Accessor: idx:%s, value:%f ", s, cv->val );
+//	sdsfree(s);
+	cellRelease(_cell);
+	return cv->val;
     /*
     DDimensionItem* di = _dim->getDimItem(dim_item);
     if (di == NULL) {
@@ -195,10 +218,18 @@ static double      getValueByDimItemId (struct formula_struct *_formula, int di_
 }
 
 static double      getValueByIds (struct formula_struct *_formula,int nr_dim, int* dim, int* dim_item){
-    return 0;
+	vvdb* _vvdb = (vvdb*)_formula->vvdb;
+	cell* _cell = cellBuildCell(_formula->cell);
+    for(int i=0; i<nr_dim;++i) {
+    	setCellIdx(_cell, dim[i], dim_item[i]);
+    }
+	cell_val* cv = _vvdb->getCellValue(_vvdb, _cell);
+	cellRelease(_cell);
+
+	return cv->val;
 /*
     QList<int> idx(_idx);
-    // !!! Atentie: este corect cu <=.
+    // !!! Atentie: este corect cu <=. Am adaugat + 1 in g
     for(int i=0; i<=nr_dim;++i) {
         idx[ dim[i] ] = dim_item[i];
     }

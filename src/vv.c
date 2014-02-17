@@ -144,9 +144,11 @@ int is_same_value(double old_value, double new_value) {
 }
 
 int set_value_with_response(redisClient *c, vvdb *_vvdb, cell *_cell, long double _cell_val, long *nr_writes  ) {
+	long double round = roundf(_cell_val*100.0f)/100.0f;// !! Just a test
+
 	cell_val *_cv = _vvdb->getCellValue(_vvdb,_cell);
-	if ( ! is_same_value(_cv->val, _cell_val) ) {
-		_cv->val = _cell_val;
+	if ( ! is_same_value(_cv->val, round) ) {
+		_cv->val = round;
 		write_cell_response(c, _cell, _cv, nr_writes);
 	}
 	return REDIS_OK;
@@ -170,10 +172,6 @@ cell* cellBuildFromClient(redisClient *c, cube* cube ){
 	if ( REDIS_OK != decode_cell_idx(c, _cell) ) {
 		cellRelease(_cell);
 		redisLog(REDIS_WARNING,"Fail to compute  cell index");
-		return NULL;
-	}
-	if ( REDIS_OK != compute_index(cube , _cell) ) {
-		redisLog(REDIS_WARNING,"Fail to compute  flat index");
 		return NULL;
 	}
 	return _cell;

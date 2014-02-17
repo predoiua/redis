@@ -7,25 +7,6 @@
 #include "vvdb.h"
 
 
-di_children* diBuild(redisClient *c, int cube, int dim, int di){
-	sds s = sdsempty();
-	s = sdscatprintf(s,"%d_%d_%d_children", cube, dim, di);
-	robj *so = createObject(REDIS_STRING,s);
-	robj* redis_data = lookupKeyRead(c->db, so);
-	//redisLog(REDIS_WARNING, "Data address :%s", s);
-
-	decrRefCount(so);
-	if (redis_data == NULL ){
-		// This is possible -> no children. Just a convention, to reduce number of keys in db.
-		//redisLog(REDIS_WARNING,"Invalid key :%s", s);
-		return NULL;
-	}
-
-	di_children* res = (di_children*)sdsnewlen(NULL, sizeof(di_children));
-	initDiChildren(res, redis_data->ptr);
-	return res;
-}
-
 void diRelease(di_children* di){
 	sdsfree( (sds)di);
 }
@@ -41,7 +22,7 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _
 		, int curr_dim  // Algorithm parameters
 		, long* nr_writes // How many result has been written to client
 		){
-	sliceAddCell(c,_cube, _slice, _cell); // FIXME: It is ok here ?
+	sliceAddCell(_vvdb,_cube, _slice, _cell); // FIXME: It is ok here ?
 
 	int di_idx = getCellDiIndex(_cell, curr_dim);
 	if ( ( *_cube->nr_dim - 1 )!= curr_dim ) {
@@ -53,9 +34,10 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _
 	} else {
 		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, (double)_val);
 		set_value_with_response(c, _vvdb, _cell, _val, nr_writes);
-		sliceAddCell(c,_cube, _slice, _cell);
+		sliceAddCell(_vvdb,_cube, _slice, _cell);
 	}
-	di_children *di = diBuild(c, (int)*_cube->numeric_code, curr_dim, di_idx);
+	di_children *di = _vvdb->getDiChildren (_vvdb, curr_dim, di_idx);
+			//diBuild(c, (int)*_cube->numeric_code, curr_dim, di_idx);
 
 	//redisLog(REDIS_WARNING, "Is simple :%d on dim: %d/%d", diIsSimple(di), curr_dim, *_cube->nr_dim -1 );
 	//if ( ! diIsSimple(di) ) {
@@ -68,11 +50,6 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _
 			uint32_t old_di_idx = getCellDiIndex(_cell, curr_dim);
 			// Instead of create a new cell, reuse the old one
 			setCellIdx(_cell,curr_dim, new_di_idx);
-			//redisLog(REDIS_WARNING, "New index on dim :%d is :%d child nr:%d", curr_dim, new_di_idx,i);
-			if ( REDIS_OK != compute_index(_cube , _cell) ) {
-				redisLog(REDIS_WARNING,"ABORT: Fail to compute  flat index for the new cell");
-				return REDIS_ERR;
-			}
 			//Go one level downward
 			cellSetValueDownward(c, _cube, _cell, new_val, _vvdb
 						, _slice
@@ -192,29 +169,15 @@ int sliceResetElementsCurrElement(slice *_slice, uint32_t up_to) {
 	return REDIS_OK;
 }
 
-int32_t getLevel( redisClient *c, cube *_cube,  uint32_t dim_idx, size_t di_idx){
 
-	sds s = sdsempty();
-	s = sdscatprintf(s,"%d_%d_%d_level", (int)*_cube->numeric_code, (int)dim_idx, (int)di_idx);
-	robj *so = createObject(REDIS_STRING,s);
-	robj* redis_data = lookupKeyRead(c->db, so);
-	//redisLog(REDIS_WARNING, "Data address :%s", s);
-
-	decrRefCount(so);
-	if (redis_data == NULL ){
-		redisLog(REDIS_WARNING, "Invalid key : %s", s);
-		return -1;
-	}
-	return *(int32_t*)redis_data->ptr;
-}
-int sliceAddCell(redisClient *c,cube* _cube, slice* _slice, cell *_cell){
+int sliceAddCell(vvdb *_vvdb, cube* _cube, slice* _slice, cell *_cell){
 	//redisLog(REDIS_WARNING,"Slice address :%p", (void*)_slice);
 	//redisLog(REDIS_WARNING,"Slice number of dimensions:%d", _slice->nr_dim);
 
 	for(uint32_t i =0; i<_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
 		size_t di_idx = getCellDiIndex(_cell, i);
-		int32_t level = getLevel(c, _cube, i, di_idx);
+		int32_t level = _vvdb->getLevel(_vvdb, i, di_idx);
 		if ( level != -1 ) {
 			setElementsElement(el, di_idx ,level);
 		}
@@ -230,24 +193,73 @@ cell* cellBuildEmpty(cube* _cube ){
 	initCellDin(_cell , space); setCellNrDims(_cell,*_cube->nr_dim);
 	return _cell;
 }
+
+cell* cellBuildCell(cell* _cell ){
+	sds space = sdsempty();
+	space = sdsMakeRoomFor( space, cellStructSizeDin( _cell->nr_dim ) );
+	cell *_cell_new = (cell*) space;
+	initCellDin(_cell_new , space); setCellNrDims(_cell_new,_cell->nr_dim);
+	for(int i=0;i < _cell->nr_dim;++i){
+		setCellIdx(_cell_new, i, getCellDiIndex(_cell, i));
+	}
+// What's wrong with this one :
+//	cell *_new_cell = sdsdup ((sds)_cell );
+//	initCellDin(_new_cell , _new_cell); // set idxs pointer.
+	return _cell_new;
+}
+
+int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
+		char** formula,
+		int*  dimension
+		) {
+	vvdb *_vvdb = vvdbNew(_db,_cube);
+	for(int i=0;i<*_cube->nr_dim;++i){
+		size_t di = getCellDiIndex (_cell, i);
+		int32_t lvl = _vvdb->getLevel(_vvdb,i, di);
+		if (0 != lvl){
+			*formula = _vvdb->getFormula(_vvdb, i, di );
+			*dimension = i;
+			_vvdb->free(_vvdb);
+			return REDIS_OK;
+		}
+	}
+	_vvdb->free(_vvdb);
+	return REDIS_ERR;
+}
 int cellRecompute(redisDb *_db,cube *_cube,cell* _cell){
-	static int nr_tot = 0;
+
+	vvdb *_vvdb = vvdbNew(_db,_cube);
+	char* prog = NULL;
+	int   dim = -1;
+	if ( REDIS_OK != getFormulaAndDim( _db,_cube,_cell, &prog, &dim) ){
+		redisLog(REDIS_WARNING, "Fail to find the appropriate formula for the cell." );
+		return REDIS_ERR;
+	}
+	redisLog(REDIS_WARNING, "Process formula:%s: dim:%d", prog, dim );
+
+	formula *f = formulaNew(
+			_db,
+			 //void *_cube, _cell, int _dim_idx, , const char* _program
+			_cube, _cell, dim,  prog
+			);
+
+	double val = f->eval(f, _cell);
+
+	cell_val* cv = _vvdb->getCellValue(_vvdb, _cell);
+//=============
+	// Print some details about what i'm doing
 	sds s = sdsempty();
 	for(int i=0; i < _cell->nr_dim; ++i ){
 		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
 	}
 
+	redisLog(REDIS_WARNING, "Cell idx:%s, old value: %f, new value:%f ", s, cv->val, val );
 	sdsfree(s);
-	//get formula
-	//execute it
-	formula *f = formulaNew(
-			_db,
-			 //void *_cube, _cell, int _dim_idx, , const char* _program
-			_cube, _cell, 0, "10 + 9"
-			);
-	double val = f->eval(f, _cell);
-	//f->free(f);
-	redisLog(REDIS_WARNING, " Number of cycles:%d cell idx:%s, value:%f ", ++nr_tot, s, val );
+//=============
+	cv->val = val;
+	f->free(f);
+	_vvdb->free(_vvdb);
+
 	return REDIS_OK;
 }
 // Return the index at the same level
@@ -288,9 +300,9 @@ int sliceRecomputeLevel(redisDb *_db,cube *_cube,slice *_slice){
 			elements* el = getSliceElement(_slice, i);
 			setCellIdx(_cell, i, el->curr_elem);
 		}
-		if ( REDIS_OK != compute_index(_cube , _cell) ) {
-			return REDIS_ERR;
-		}
+//		if ( REDIS_OK != compute_index(_cube , _cell) ) {
+//			return REDIS_ERR;
+//		}
 		// Recompute cell
 		cellRecompute(_db, _cube, _cell);
 	   // Made one change in slice.elements ( advance one index )

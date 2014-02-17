@@ -8,8 +8,12 @@ static 	int  	vvdb_free     	(struct vvdb_struct * _vvdb);
 static 	int 	getDimIdx	  	(struct vvdb_struct * _vvdb, char* dim_code);
 static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_code);
 static	void*   getCellValue	(struct vvdb_struct *_vvdb, void* _cell);
+static int32_t  getLevel( struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
+static di_children* 	getDiChildren (struct vvdb_struct *_vvdb, int dim, int di);
+static char* 	*getFormula (struct vvdb_struct *_vvdb, int dim, int di);
 
 // Internal
+static int compute_index(cube* _cube,  cell* _cell );
 //static int cubeBuild(redisDb *_db, robj *_cube_code, cube *_cube );
 static int   getIdFromHash (redisDb *_db, robj *hash_code, char* field_code);
 // return the pointer to cube data
@@ -50,11 +54,14 @@ vvdb* vvdbNew(void *_db, void* _cube) {
 	_vvdb->free 			= vvdb_free;
 	_vvdb->getDimIdx 		= getDimIdx;
 	_vvdb->getDimItemIdx	= getDimItemIdx;
-	_vvdb->getCellValue	= getCellValue;
+	_vvdb->getCellValue		= getCellValue;
+	_vvdb->getLevel			= getLevel;
+	_vvdb->getDiChildren	= getDiChildren;
+	_vvdb->getFormula		= getFormula;
 	// NULL initialization for members
-	_vvdb->db 		= NULL;
-	_vvdb->cube 	= NULL;
-	_vvdb->cube_data = NULL;
+	_vvdb->db 			= NULL;
+	_vvdb->cube 		= NULL;
+	_vvdb->cube_data 	= NULL;
 	// Start to put real values
 	_vvdb->db 	 	= _db;
 	_vvdb->cube		= _cube;
@@ -79,7 +86,7 @@ static int getIdFromHash (redisDb *_db, robj *hash_code, char* field_code) {
 	int idx = -1;
 	robj* o = lookupKeyRead(_db, hash_code);
 	if (o == NULL) {
-		LOG( "I don't find the hash table : %s ", field_code);
+		LOG( "I don't find the hash table : %s ", (char*)hash_code->ptr);
 		return idx;
 	}
 	//Field
@@ -96,7 +103,7 @@ static int getIdFromHash (redisDb *_db, robj *hash_code, char* field_code) {
 
 		ret = hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll);
 		if (ret < 0) {
-			LOG( "ERROR: Didn't find the key :%s: \n", s_field);
+			LOG( "ERROR: Didn't find the key :%s: in hash:%s:\n", s_field, (char*)hash_code->ptr);
 		} else {
 			if (vstr) {
 				// THIS IS THE REAL EXIT
@@ -132,6 +139,8 @@ static int 	getDimIdx	  (struct vvdb_struct * _vvdb, char* dim_code) {
 	robj *so = createObject(REDIS_STRING,s);
 	idx = getIdFromHash( _db, so, dim_code );
 	decrRefCount(so);
+	LOG( "For hash: %s, field:%s => value %d ", (char*)so->ptr, dim_code, idx);
+
     return idx;
 }
 
@@ -149,7 +158,89 @@ static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_c
     return idx;
 }
 
+static int compute_index(cube* _cube,  cell* _cell ) {
+	int nr_dim;
+	size_t k=0;
+	nr_dim = *(_cube->nr_dim);
+    for (int i = nr_dim - 1; i >= 0; --i){
+        uint32_t idx_dis = getCellDiIndex(_cell,i);
+        uint32_t nr_elem = getCubeNrDi(_cube,i);
+        if ( nr_elem <= idx_dis ) {
+        	redisLog(REDIS_WARNING,"Index for dimension %d : %d must be < %d",i, idx_dis, nr_elem);
+        	return REDIS_ERR;
+        }
+        k = k * nr_elem + idx_dis;
+    }
+    //redisLog(REDIS_WARNING,"Flat index: %zu\n",k);
+    _cell->idx = k;
+    return REDIS_OK;
+}
+
 static	void*  getCellValue	(struct vvdb_struct *_vvdb, void* _cell) {
 	cell	*_c = (cell	*)_cell;
+	cube    *_cube = (cube*)_vvdb->cube;
+
+	if( REDIS_OK != compute_index(_cube, _c ) ){
+		redisLog(REDIS_WARNING,"Fail to compute  flat index");
+		_c->idx = 0; // :(
+	}
 	return (cell_val*)_vvdb->cube_data + _c->idx;
+}
+
+static int32_t getLevel( struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx){
+	cube    *_cube = (cube*)_vvdb->cube;
+	redisDb *_db = (redisDb*)_vvdb->db;
+
+	sds s = sdsempty();
+	s = sdscatprintf(s,"%d_%d_%d_level", (int)*_cube->numeric_code, (int)dim_idx, (int)di_idx);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* redis_data = lookupKeyRead(_db, so);
+
+	decrRefCount(so);
+	if (redis_data == NULL ){
+		redisLog(REDIS_WARNING, "Invalid key : %s", s);
+		return -1;
+	}
+	return *(int32_t*)redis_data->ptr;
+}
+
+static di_children* 	getDiChildren (struct vvdb_struct *_vvdb, int dim, int di) {
+//	di_children* diBuild(redisClient *c, int cube, int dim, int di){
+	cube    *_cube = (cube*)_vvdb->cube;
+	redisDb *_db = (redisDb*)_vvdb->db;
+
+	sds s = sdsempty();
+	s = sdscatprintf(s,"%d_%d_%d_children", *_cube->numeric_code, dim, di);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* redis_data = lookupKeyRead(_db, so);
+	//redisLog(REDIS_WARNING, "Data address :%s", s);
+
+	decrRefCount(so);
+	if (redis_data == NULL ){
+		// This is possible -> no children. Just a convention, to reduce number of keys in db.
+		//redisLog(REDIS_WARNING,"Invalid key :%s", s);
+		return NULL;
+	}
+
+	di_children* res = (di_children*)sdsnewlen(NULL, sizeof(di_children));
+	initDiChildren(res, redis_data->ptr);
+	return res;
+}
+
+static char* 	*getFormula (struct vvdb_struct *_vvdb, int dim, int di){
+	cube    *_cube = (cube*)_vvdb->cube;
+	redisDb *_db = (redisDb*)_vvdb->db;
+
+	sds s = sdsempty();
+	s = sdscatprintf(s,"%d_%d_%d_formula", *_cube->numeric_code, dim, di);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* redis_data = lookupKeyRead(_db, so);
+	if (redis_data == NULL ){
+		redisLog(REDIS_WARNING,"No formula with key :%s", s);
+		return NULL;
+	}
+	redisLog(REDIS_WARNING,"key :%s=>%s", s, (char*)redis_data->ptr);
+
+	decrRefCount(so);
+	return (char*)redis_data->ptr;
 }

@@ -17,6 +17,11 @@ typedef struct {
 } cell_val;
 
 typedef struct{
+	int nr;
+	int	up_ids[];
+} up_links;
+
+typedef struct{
 	uint32_t	nr_dim; // same as nr of dim in cube
 	size_t		idx;    // cell index in a flat structure
 	size_t		*idxs;   // an array of di index in each dimension

@@ -182,7 +182,30 @@ int cellRelease(cell *_cell ){
 	_cell = NULL;
 	return REDIS_OK;
 }
+int sliceAddUplinks(slice* _slice, vvdb* _vvdb) {
+	// i = dimension index
+	for( uint32_t i =0; i <_slice->nr_dim; ++i){
+		elements* el = getSliceElement(_slice, i);
+		// j = di index
+		for(uint32_t j=0; j< el->nr_elem; ++j ){
+			uint32_t level = getElementsElement(el, j);
+			if ( -1 == level ){
+				// _vvdb->getUpLinks()
+				// _vvdb->getLevel
+				// _slice->set level
+			}
+		}
+//		up_links* upl =
+//		size_t di_idx = getCellDiIndex(_cell, i);
+//		int32_t level = _vvdb->getLevel(_vvdb, i, di_idx);
+//		if ( level != -1 ) {
+//			setElementsElement(el, di_idx ,level);
+//		}
 
+
+	}
+	return REDIS_OK;
+}
 /*
  * set a value of a cell
    vvset cubecode di1 di2         dix value
@@ -231,6 +254,9 @@ void vvset(redisClient *c) {
     		,  0  // Algorithm parameters
     		, &nr_writes // How many result has been written to client
     		);
+
+    // Add up links
+    sliceAddUplinks(_slice, _vvdb);
 
 	sliceSetValueUpward(c->db, &cube, _slice);
     setDeferredMultiBulkLength(c, replylen, nr_writes);

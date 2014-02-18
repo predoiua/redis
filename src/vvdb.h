@@ -28,8 +28,8 @@ typedef	struct vvdb_struct{
 	int32_t  		(*getLevel)		(struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
 	di_children* 	(*getDiChildren) (struct vvdb_struct *_vvdb, int dim, int di);
 
-	char* 	(*getFormula) (struct vvdb_struct *_vvdb, int dim, int di);
-
+	char* 		(*getFormula) (struct vvdb_struct *_vvdb, int dim, int di);
+	up_links 	(*getUpLinks) (struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
 	int (*free)     (struct vvdb_struct * _vvdb);
 } vvdb;
 

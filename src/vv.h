@@ -16,10 +16,9 @@ typedef struct {
 	double  val; // 4 bites
 } cell_val;
 
-typedef struct{
-	int nr;
-	int	up_ids[];
-} up_links;
+typedef int* up_links;
+//#define nr_up_links(up_links) ( sdslen((sds)up_links)/4 )
+
 
 typedef struct{
 	uint32_t	nr_dim; // same as nr of dim in cube

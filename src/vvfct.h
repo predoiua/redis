@@ -3,6 +3,8 @@
 #include "redis.h"
 #include "vvdb.h"
 
+#define nr_up_links(up_links) ( sdslen((sds)up_links)/4 )
+
 //vv fct
 void vvcube(redisClient *c);
 void vvset(redisClient *c);
@@ -18,8 +20,7 @@ cell* cellBuildEmpty(cube* _cube );
 cell* cellBuildCell(cell* _cell );
 int   cellRelease(cell *_cell );
 
-robj* build_key(robj* cube, sds ending);
-void replace_store(redisDb *db,robj *key, sds store);
+//void replace_store(redisDb *db,robj *key, sds store);
 int decode_cell_idx(redisClient *c, cell *cell);
 int is_same_value(double old_value, double new_value);
 

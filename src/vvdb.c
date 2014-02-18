@@ -10,7 +10,8 @@ static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_c
 static	void*   getCellValue	(struct vvdb_struct *_vvdb, void* _cell);
 static int32_t  getLevel( struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
 static di_children* 	getDiChildren (struct vvdb_struct *_vvdb, int dim, int di);
-static char* 	*getFormula (struct vvdb_struct *_vvdb, int dim, int di);
+static char* 	getFormula (struct vvdb_struct *_vvdb, int dim, int di);
+static up_links 	getUpLinks (struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
 
 // Internal
 static int compute_index(cube* _cube,  cell* _cell );
@@ -58,6 +59,7 @@ vvdb* vvdbNew(void *_db, void* _cube) {
 	_vvdb->getLevel			= getLevel;
 	_vvdb->getDiChildren	= getDiChildren;
 	_vvdb->getFormula		= getFormula;
+	_vvdb->getUpLinks	 = getUpLinks;
 	// NULL initialization for members
 	_vvdb->db 			= NULL;
 	_vvdb->cube 		= NULL;
@@ -227,20 +229,35 @@ static di_children* 	getDiChildren (struct vvdb_struct *_vvdb, int dim, int di) 
 	return res;
 }
 
-static char* 	*getFormula (struct vvdb_struct *_vvdb, int dim, int di){
+static char* 	getFormula (struct vvdb_struct *_vvdb, int dim, int di){
 	cube    *_cube = (cube*)_vvdb->cube;
 	redisDb *_db = (redisDb*)_vvdb->db;
 
-	sds s = sdsempty();
-	s = sdscatprintf(s,"%d_%d_%d_formula", *_cube->numeric_code, dim, di);
+	sds s = sdscatprintf(sdsempty(),"%d_%d_%d_formula", *_cube->numeric_code, dim, di);
 	robj *so = createObject(REDIS_STRING,s);
 	robj* redis_data = lookupKeyRead(_db, so);
 	if (redis_data == NULL ){
 		redisLog(REDIS_WARNING,"No formula with key :%s", s);
 		return NULL;
 	}
-	redisLog(REDIS_WARNING,"key :%s=>%s", s, (char*)redis_data->ptr);
+	//redisLog(REDIS_WARNING,"key :%s=>%s", s, (char*)redis_data->ptr);
 
 	decrRefCount(so);
 	return (char*)redis_data->ptr;
+}
+
+static up_links	getUpLinks (struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di) {
+	cube    *_cube = (cube*)_vvdb->cube;
+	redisDb *_db = (redisDb*)_vvdb->db;
+
+	sds s = sdscatprintf(sdsempty(),"%d_%d_%d_up_links", *_cube->numeric_code, dim, di);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* redis_data = lookupKeyRead(_db, so);
+	if (redis_data == NULL ){
+		redisLog(REDIS_WARNING,"No up links with key :%s", s);
+		return NULL;
+	}
+	decrRefCount(so);
+	return (up_links) redis_data->ptr;
+
 }

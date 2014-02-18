@@ -10,13 +10,13 @@
 #include "vvdb.h"
 
 
-robj* build_key(robj* cube, sds ending){
-	// Key for cube structure
-	sds key = sdsempty();
-	key= sdscatlen(key, cube->ptr, sdslen(cube->ptr));
-	key= sdscatlen(key, ending , strlen(ending));
-	return createObject(REDIS_STRING,key);
-}
+//robj* build_key(robj* cube, sds ending){
+//	// Key for cube structure
+//	sds key = sdsempty();
+//	key= sdscatlen(key, cube->ptr, sdslen(cube->ptr));
+//	key= sdscatlen(key, ending , strlen(ending));
+//	return createObject(REDIS_STRING,key);
+//}
 void replace_store(redisDb *db,robj *key, sds store){
 	if (dbDelete(db,key)) {
 		signalModifiedKey(db,key);
@@ -183,6 +183,7 @@ int cellRelease(cell *_cell ){
 	return REDIS_OK;
 }
 int sliceAddUplinks(slice* _slice, vvdb* _vvdb) {
+	return REDIS_OK;
 	// i = dimension index
 	for( uint32_t i =0; i <_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
@@ -191,18 +192,20 @@ int sliceAddUplinks(slice* _slice, vvdb* _vvdb) {
 			uint32_t level = getElementsElement(el, j);
 			if ( -1 == level ){
 				// _vvdb->getUpLinks()
-				// _vvdb->getLevel
-				// _slice->set level
+				redisLog(REDIS_WARNING,"Uplink dim:%d, di:%d", i, j);
+				up_links links = _vvdb->getUpLinks(_vvdb, i, j);
+				if (NULL != links){
+					// _vvdb->getLevel
+					// _slice->set level
+					for(int k=0; k <nr_up_links(links); ++k){
+						int32_t level = _vvdb->getLevel(_vvdb, i, k);
+						if ( level != -1 ) {
+							setElementsElement(el, k ,level);
+						}
+					}
+				}
 			}
 		}
-//		up_links* upl =
-//		size_t di_idx = getCellDiIndex(_cell, i);
-//		int32_t level = _vvdb->getLevel(_vvdb, i, di_idx);
-//		if ( level != -1 ) {
-//			setElementsElement(el, di_idx ,level);
-//		}
-
-
 	}
 	return REDIS_OK;
 }

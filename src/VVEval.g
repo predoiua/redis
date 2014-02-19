@@ -13,13 +13,13 @@ options {
 @members {
 
 //Informatia ncesara pentru accesarea inf din cub.	
-int nrDim;	// Cate dimensiuni specificate ( in urmatoarele liste pe cate pozitii am valori )
-int dim_idx[10];
-int dim_item_idx[10];
+static int nrDim;	// Cate dimensiuni specificate ( in urmatoarele liste pe cate pozitii am valori )
+static int dim_idx[10];
+static int dim_item_idx[10];
 
-double variables[10];
+static double variables[10];
 
-char rez[100];
+static char rez[100];
 //Asta e o chestie interesanta:
 // Pot stoca in token valori. Adica sa fac o singura data decodificarea char in int
 // si apoi sa folosesc rez precalculate.
@@ -27,15 +27,18 @@ char rez[100];
 // t->user1 = 101;
 
 
-void fillRez(pANTLR3_BASE_TREE tt){
+static void fillRez(pANTLR3_BASE_TREE tt){
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
-	int c1 = (int)t->start;//  ANTLR3_MARKER este ANTLR3_INT32
-	int c2 = (int)t->stop;
+//	int c1 = (int)t->start;//  ANTLR3_MARKER este ANTLR3_INT32
+//	int c2 = (int)t->stop;
+	char* c1 = t->start;//  ANTLR3_MARKER este ANTLR3_INT32
+	char* c2 = t->stop;
+	
 	strncpy(rez, c1 , c2 - c1 + 1);
 	rez[c2 - c1 + 1] = '\0';
 }
 //In acest caz este un dim item.
-double getValoareDimItem(struct formula_struct *_formula,pANTLR3_BASE_TREE tt){
+static double getValoareDimItem(struct formula_struct *_formula,pANTLR3_BASE_TREE tt){
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	//printf("Tip token:\%d\n",t->user2);
 	//Variabila din cub.
@@ -51,14 +54,14 @@ double getValoareDimItem(struct formula_struct *_formula,pANTLR3_BASE_TREE tt){
 	return 0.;
 }
 //FLOATING_POINT_LITERAL
-double getValoareFloat(pANTLR3_BASE_TREE tt){
+static double getValoareFloat(pANTLR3_BASE_TREE tt){
 	fillRez(tt);
 	double d;
 	sscanf(rez, "\%lf", &d);
 	return d;
 }
 //INT
-double getValoareInt(pANTLR3_BASE_TREE tt){
+static double getValoareInt(pANTLR3_BASE_TREE tt){
 	fillRez(tt);
 	int d;
 	sscanf(rez, "\%d", &d);
@@ -66,7 +69,7 @@ double getValoareInt(pANTLR3_BASE_TREE tt){
 	return (double)d;
 }
 //ASSIGN
-void slyAssign(struct formula_struct *_formula, pANTLR3_BASE_TREE tt, double val){
+static void slyAssign(struct formula_struct *_formula, pANTLR3_BASE_TREE tt, double val){
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	variables[ t->user1 ] = val;
 	//fillRez(id);
@@ -75,16 +78,16 @@ void slyAssign(struct formula_struct *_formula, pANTLR3_BASE_TREE tt, double val
 }
 
 //ACCESOR
-void		setDimension(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
+static void		setDimension(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
 	pANTLR3_COMMON_TOKEN    t = id->getToken(id);
 	++nrDim;
 	dim_idx[nrDim] = t->user1; 
 }
-void		setDimensionItem(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
+static void		setDimensionItem(struct formula_struct *_formula, pANTLR3_BASE_TREE id) {
 	pANTLR3_COMMON_TOKEN    t = id->getToken(id);
 	dim_item_idx[nrDim] = t->user1; 
 }
-double getValoareCell(struct formula_struct *_formula) {
+static double getValoareCell(struct formula_struct *_formula) {
 	return _formula->getValueByIds(_formula, nrDim + 1, dim_idx, dim_item_idx);
 }
 

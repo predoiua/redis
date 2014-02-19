@@ -16,11 +16,10 @@ void diRelease(di_children* di){
 //	else
 //		return 0;
 //}
-int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _val
+int cellSetValueDownward(vvcc *_vvcc, cube* _cube, cell* _cell, long double _val
 		, vvdb*  _vvdb
 		, slice* _slice
 		, int curr_dim  // Algorithm parameters
-		, long* nr_writes // How many result has been written to client
 		){
 	sliceAddCell(_vvdb,_cube, _slice, _cell); // FIXME: It is ok here ?
 
@@ -28,19 +27,16 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _
 	if ( ( *_cube->nr_dim - 1 )!= curr_dim ) {
 		//redisLog(REDIS_WARNING, "Is Simple: move to :%d", curr_dim + 1);
 		int next_dim = curr_dim + 1;
-		cellSetValueDownward(c, _cube, _cell, _val, _vvdb
+		cellSetValueDownward(_vvcc, _cube, _cell, _val, _vvdb
 				,_slice
-				, next_dim, nr_writes);
+				, next_dim);
 	} else {
 		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, (double)_val);
-		set_value_with_response(c, _vvdb, _cell, _val, nr_writes);
+		_vvcc->setValueWithResponse(_vvcc, _cell, _val);
 		sliceAddCell(_vvdb,_cube, _slice, _cell);
 	}
 	di_children *di = _vvdb->getDiChildren (_vvdb, curr_dim, di_idx);
-			//diBuild(c, (int)*_cube->numeric_code, curr_dim, di_idx);
 
-	//redisLog(REDIS_WARNING, "Is simple :%d on dim: %d/%d", diIsSimple(di), curr_dim, *_cube->nr_dim -1 );
-	//if ( ! diIsSimple(di) ) {
 	if ( NULL != di ){
 		//redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, _cell_val->val);
 		long double new_val;
@@ -51,9 +47,9 @@ int cellSetValueDownward(redisClient *c, cube* _cube, cell* _cell, long double _
 			// Instead of create a new cell, reuse the old one
 			setCellIdx(_cell,curr_dim, new_di_idx);
 			//Go one level downward
-			cellSetValueDownward(c, _cube, _cell, new_val, _vvdb
+			cellSetValueDownward(_vvcc, _cube, _cell, new_val, _vvdb
 						, _slice
-						, curr_dim, nr_writes);
+						, curr_dim);
 			//revert to old index
 			setCellIdx(_cell,curr_dim, old_di_idx);
 		}
@@ -195,6 +191,8 @@ cell* cellBuildEmpty(cube* _cube ){
 }
 
 cell* cellBuildCell(cell* _cell ){
+	redisLog(REDIS_WARNING, "Build cell - original cell size:%d.", (int)sdslen((sds)_cell) );
+
 	sds space = sdsempty();
 	space = sdsMakeRoomFor( space, cellStructSizeDin( _cell->nr_dim ) );
 	cell *_cell_new = (cell*) space;
@@ -226,7 +224,7 @@ int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 	_vvdb->free(_vvdb);
 	return REDIS_ERR;
 }
-int cellRecompute(redisDb *_db,cube *_cube,cell* _cell){
+int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	char* prog = NULL;
@@ -235,7 +233,7 @@ int cellRecompute(redisDb *_db,cube *_cube,cell* _cell){
 		redisLog(REDIS_WARNING, "Fail to find the appropriate formula for the cell." );
 		return REDIS_ERR;
 	}
-	redisLog(REDIS_WARNING, "Process formula:%s: dim:%d", prog, dim );
+	//redisLog(REDIS_WARNING, "Process formula:%s: dim:%d", prog, dim );
 
 	formula *f = formulaNew(
 			_db,
@@ -243,20 +241,22 @@ int cellRecompute(redisDb *_db,cube *_cube,cell* _cell){
 			_cube, _cell, dim,  prog
 			);
 
-	double val = f->eval(f, _cell);
+	long double val = f->eval(f, _cell);
 
-	cell_val* cv = _vvdb->getCellValue(_vvdb, _cell);
-//=============
-	// Print some details about what i'm doing
-	sds s = sdsempty();
-	for(int i=0; i < _cell->nr_dim; ++i ){
-		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
-	}
-
-	redisLog(REDIS_WARNING, "Cell idx:%s, old value: %f, new value:%f ", s, cv->val, val );
-	sdsfree(s);
-//=============
-	cv->val = val;
+	_vvcc->setValueWithResponse(_vvcc, _cell, val);
+//	cell_val* cv = _vvdb->getCellValue(_vvdb, _cell);
+//
+////=============
+//	// Print some details about what i'm doing
+//	sds s = sdsempty();
+//	for(int i=0; i < _cell->nr_dim; ++i ){
+//		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+//	}
+//
+//	redisLog(REDIS_WARNING, "Cell idx:%s, old value: %f, new value:%f ", s, cv->val, val );
+//	sdsfree(s);
+////=============
+//	cv->val = val;
 	f->free(f);
 	_vvdb->free(_vvdb);
 
@@ -275,7 +275,7 @@ int elementNextCurrElement(elements* _el){
 	}
 	return REDIS_ERR;
 }
-int sliceRecomputeLevel(redisDb *_db,cube *_cube,slice *_slice){
+int sliceRecomputeLevel(vvcc* _vvcc, redisDb *_db,cube *_cube,slice *_slice){
 
 	static int nr_tot_level = 0;
 
@@ -304,7 +304,7 @@ int sliceRecomputeLevel(redisDb *_db,cube *_cube,slice *_slice){
 //			return REDIS_ERR;
 //		}
 		// Recompute cell
-		cellRecompute(_db, _cube, _cell);
+		cellRecompute(_vvcc, _db, _cube, _cell);
 	   // Made one change in slice.elements ( advance one index )
 		for(uint32_t curr_dim = 0; ; ) {
 			elements* el = getSliceElement(_slice, curr_dim);
@@ -336,7 +336,7 @@ int sliceGetOverallMaxim(slice *_slice ){
 	}
 	return slice_max_level;
 }
-int sliceSetValueUpward(redisDb *_db, cube *_cube,slice *_slice) {
+int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 
 	//Init Slice levels ( current and maxim )
 	if ( REDIS_ERR == sliceResetElementsLevelFull(_slice) ){
@@ -350,7 +350,7 @@ int sliceSetValueUpward(redisDb *_db, cube *_cube,slice *_slice) {
 	//redisLog(REDIS_WARNING,"Overall slice max value : %d", slice_max_level);
 	while(1){
 		if ( !inital_run ) { // At first run all levels are 0, so no need recompute
-		   sliceRecomputeLevel(_db, _cube,_slice);
+		   sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
 		   inital_run = 0;
 		}
         // Made one change in slice.elements ( advance one index )

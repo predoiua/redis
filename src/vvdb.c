@@ -4,14 +4,14 @@
 #include "debug.h"
 
 // Class implementation
-static 	int  	vvdb_free     	(struct vvdb_struct * _vvdb);
-static 	int 	getDimIdx	  	(struct vvdb_struct * _vvdb, char* dim_code);
-static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_code);
-static	void*   getCellValue	(struct vvdb_struct *_vvdb, void* _cell);
-static int32_t  getLevel( struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
-static di_children* 	getDiChildren (struct vvdb_struct *_vvdb, int dim, int di);
-static char* 	getFormula (struct vvdb_struct *_vvdb, int dim, int di);
-static up_links 	getUpLinks (struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
+static 	int  			vvdb_free     	(struct vvdb_struct *_vvdb);
+static 	int 			getDimIdx	  	(struct vvdb_struct *_vvdb, char* dim_code);
+static	int 			getDimItemIdx   (struct vvdb_struct *_vvdb, int dim_idx, char* di_code);
+static	void*   		getCellValue	(struct vvdb_struct *_vvdb, void* _cell);
+static int32_t  		getLevel		(struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
+static di_children* 	getDiChildren 	(struct vvdb_struct *_vvdb, int dim, int di);
+static char* 			getFormula 		(struct vvdb_struct *_vvdb, int dim, int di);
+static up_links 		getUpLinks 		(struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
 
 // Internal
 static int compute_index(cube* _cube,  cell* _cell );
@@ -59,7 +59,7 @@ vvdb* vvdbNew(void *_db, void* _cube) {
 	_vvdb->getLevel			= getLevel;
 	_vvdb->getDiChildren	= getDiChildren;
 	_vvdb->getFormula		= getFormula;
-	_vvdb->getUpLinks	 = getUpLinks;
+	_vvdb->getUpLinks	 	= getUpLinks;
 	// NULL initialization for members
 	_vvdb->db 			= NULL;
 	_vvdb->cube 		= NULL;
@@ -82,6 +82,7 @@ vvdb* vvdbNew(void *_db, void* _cube) {
 static int  vvdb_free     (struct vvdb_struct * _vvdb) {
 	sdsfree((sds)_vvdb );
 	_vvdb = 0;
+	return REDIS_OK;
 }
 
 static int getIdFromHash (redisDb *_db, robj *hash_code, char* field_code) {
@@ -98,7 +99,7 @@ static int getIdFromHash (redisDb *_db, robj *hash_code, char* field_code) {
 	int ret;
 	if (o->encoding == REDIS_ENCODING_ZIPLIST) {
 
-		INFO( "Zip Encoding ");
+		//INFO( "Zip Encoding ");
 		unsigned char *vstr = NULL;
 		unsigned int vlen = UINT_MAX;
 		long long vll = LLONG_MAX;
@@ -186,6 +187,7 @@ static	void*  getCellValue	(struct vvdb_struct *_vvdb, void* _cell) {
 		redisLog(REDIS_WARNING,"Fail to compute  flat index");
 		_c->idx = 0; // :(
 	}
+
 	return (cell_val*)_vvdb->cube_data + _c->idx;
 }
 

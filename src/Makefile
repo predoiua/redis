@@ -119,8 +119,8 @@ REDIS_SERVER_OBJ=vvcp.o vvi.o vv.o adlist.o ae.o anet.o dict.o redis.o sds.o zma
 	vvformula.o \
 	VVEval.o  VVEvalInit.o  VVExprLexer.o  VVExprParser.o \
 	hashtable.o \
-	vvdb.o
-	
+	vvdb.o  vvchangecollector.o
+
 REDIS_CLI_NAME=redis-cli
 REDIS_CLI_OBJ=anet.o sds.o adlist.o redis-cli.o zmalloc.o release.o anet.o ae.o crc64.o
 REDIS_BENCHMARK_NAME=redis-benchmark

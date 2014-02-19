@@ -15,19 +15,23 @@ options {
 int contorDimItem = -1;	
 int contorVariabile = -1;
 
-hash_table_t *tableLocalVariable = NULL;
+static hash_table_t *tableLocalVariable = NULL;
 
-char rez[100];
+static char rez[100];
 
-void fillRez2(pANTLR3_BASE_TREE tt){
+static void fillRez2(pANTLR3_BASE_TREE tt){
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
-	int c1 = (int)t->start;//  ANTLR3_MARKER este ANTLR3_INT32
-	int c2 = (int)t->stop;
+//	int c1 = (int)t->start;//  ANTLR3_MARKER este ANTLR3_INT32
+//	int c2 = (int)t->stop;
+
+	char* c1 = t->start;//  ANTLR3_MARKER este ANTLR3_INT32
+	char* c2 = t->stop;
+
 	strncpy(rez, c1 , c2 - c1 + 1);
 	rez[c2 - c1 + 1] = '\0';
 }
 
-void registerLocalVariable(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
+static void registerLocalVariable(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	fillRez2(tt);
 	int* contor=  hash_table_lookup(tableLocalVariable, (void*)rez, strlen(rez));
@@ -43,7 +47,7 @@ void registerLocalVariable(struct formula_struct *_formula, pANTLR3_BASE_TREE tt
 		hash_table_add(tableLocalVariable, (void*)rez, strlen(rez), (void *) &contorVariabile, sizeof(contorVariabile));
     }
 }
-void initVariable(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
+static void initVariable(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	fillRez2(tt);
 	int* contor=  hash_table_lookup(tableLocalVariable, (void*)rez, strlen(rez));
@@ -63,13 +67,13 @@ void initVariable(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
 		t->user2 = 1; // Variabila din cub.
 	}
 }
-int initDimension(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
+static int initDimension(struct formula_struct *_formula, pANTLR3_BASE_TREE tt) {
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	fillRez2(tt);
 	t->user1 = _formula->getDimIdx(_formula, rez);
 	return t->user1;
 }
-int initDimensionItem(struct formula_struct *_formula, int dim,pANTLR3_BASE_TREE tt) {
+static int initDimensionItem(struct formula_struct *_formula, int dim,pANTLR3_BASE_TREE tt) {
 	pANTLR3_COMMON_TOKEN    t = tt->getToken(tt);
 	fillRez2(tt);
 	t->user1 = _formula->getDimItemIdx(_formula, dim, rez);

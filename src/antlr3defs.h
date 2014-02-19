@@ -355,6 +355,7 @@ typedef	int	SOCKET;
 #define ANTLR3_API
 #define	ANTLR3_CDECL
 #define ANTLR3_FASTCALL
+#define ANTLR3_USE_64BIT
 
 #ifdef	__hpux
 

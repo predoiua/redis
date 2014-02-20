@@ -10,12 +10,7 @@
 void diRelease(di_children* di){
 	sdsfree( (sds)di);
 }
-//int diIsSimple(di_children* di){
-//	if ( 0 == *di->nr_child )
-//		return 1;
-//	else
-//		return 0;
-//}
+
 int cellSetValueDownward(vvcc *_vvcc, cube* _cube, cell* _cell, long double _val
 		, vvdb*  _vvdb
 		, slice* _slice
@@ -183,26 +178,16 @@ int sliceAddCell(vvdb *_vvdb, cube* _cube, slice* _slice, cell *_cell){
 	return REDIS_OK;
 }
 cell* cellBuildEmpty(cube* _cube ){
-	sds space = sdsempty();
-	space = sdsMakeRoomFor( space, cellStructSizeDin( *_cube->nr_dim ) );
+	sds space = sdsgrowzero( sdsempty(),  cellStructSizeDin( *_cube->nr_dim ) );
 	cell *_cell = (cell*) space;
 	initCellDin(_cell , space); setCellNrDims(_cell,*_cube->nr_dim);
 	return _cell;
 }
 
 cell* cellBuildCell(cell* _cell ){
-	redisLog(REDIS_WARNING, "Build cell - original cell size:%d.", (int)sdslen((sds)_cell) );
+	cell *_cell_new = sdsdup ((sds)_cell );
+	initCellDin(_cell_new , _cell_new); // set idxs pointer.
 
-	sds space = sdsempty();
-	space = sdsMakeRoomFor( space, cellStructSizeDin( _cell->nr_dim ) );
-	cell *_cell_new = (cell*) space;
-	initCellDin(_cell_new , space); setCellNrDims(_cell_new,_cell->nr_dim);
-	for(int i=0;i < _cell->nr_dim;++i){
-		setCellIdx(_cell_new, i, getCellDiIndex(_cell, i));
-	}
-// What's wrong with this one :
-//	cell *_new_cell = sdsdup ((sds)_cell );
-//	initCellDin(_new_cell , _new_cell); // set idxs pointer.
 	return _cell_new;
 }
 
@@ -244,19 +229,7 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 	long double val = f->eval(f, _cell);
 
 	_vvcc->setValueWithResponse(_vvcc, _cell, val);
-//	cell_val* cv = _vvdb->getCellValue(_vvdb, _cell);
-//
-////=============
-//	// Print some details about what i'm doing
-//	sds s = sdsempty();
-//	for(int i=0; i < _cell->nr_dim; ++i ){
-//		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
-//	}
-//
-//	redisLog(REDIS_WARNING, "Cell idx:%s, old value: %f, new value:%f ", s, cv->val, val );
-//	sdsfree(s);
-////=============
-//	cv->val = val;
+
 	f->free(f);
 	_vvdb->free(_vvdb);
 
@@ -390,47 +363,3 @@ int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 	redisLog(REDIS_WARNING,"sliceSetValueUpward : This is not a valid output... Something gone wrong...");
 	return REDIS_ERR;
 }
-/*
-   slice* _slice;
-  init elements.current_idx;
-  while(1) {
-        // Compute the cell, and recompute the value
-        cell _cell;
-
-        for curr_dim = 0 .. cube.nr_dim
-            element = slice.get_element( curr_dim )
-            cell.i = element.curr_elem
-        get formula ( _cell )
-        execute formula
-
-        slice_level = 0;
-
-        // Made one change in slice.elements ( advance one index )
-        for(int curr_dim = 0; ; ) {
-            element = slice.get_element( curr_dim )
-            //elem_curr_level = element.get_curr_level();
-            new_curr_elmen = element.get_next_elem( slice_level )
-
-            if( new_curr_elmen is ok ) {
-                // Now I have a new cell address
-                element.curr_elem = new_curr_element;
-                break;
-            } else {
-                if( curr_dim = last_dimension) {
-                    if ( slice_level < cube level ) {
-                        curr_dim = 0;
-                        ++slice_level;
-                    } else {
-                        //I have done all the possible combination. Exit
-                        return OK;
-                     }
-                } else {
-                    element at curr_dim = first_item;
-                    ++curr_dim
-                }
-            }
-        }
-    }
-
- */
-

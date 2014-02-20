@@ -27,6 +27,7 @@ formula* formulaNew(
         void *_cell,
         int _dim_idx,
         const char* _program) {
+
 	formula* res = (formula*)sdsnewlen(NULL,sizeof(formula));
 
     //formula* res = malloc(sizeof(formula));

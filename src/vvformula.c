@@ -194,28 +194,6 @@ static double      getValueByDimItemId (struct formula_struct *_formula, int di_
 //	sdsfree(s);
 	cellRelease(_cell);
 	return cv->val;
-    /*
-    DDimensionItem* di = _dim->getDimItem(dim_item);
-    if (di == NULL) {
-        qDebug() << "Eval context(formula): Invalid dimension position :" << dim_item << "  in dimension " << _dim->getCode();
-        return 0.;
-    }
-    int pos = _dim->getPosition();
-    _idx[pos] = di->getPosition();
-
-    CellValue cv =  _storage->getValue(_idx);
-    if ( ! cv.isDouble() ) {
-        QString whatIs;
-        if ( cv.isInt() )
-            whatIs = "Dimension";
-        if ( cv.isString() )
-            whatIs += "String";
-
-        qDebug() << "Eval context(formula): " << di->getCode() << " is not double, is "<< whatIs << "idx:" << _idx;
-        return 0.;
-    }
-    return cv.getDouble();
-    */
 }
 
 static double      getValueByIds (struct formula_struct *_formula,int nr_dim, int* dim, int* dim_item){
@@ -228,27 +206,6 @@ static double      getValueByIds (struct formula_struct *_formula,int nr_dim, in
 	cellRelease(_cell);
 
 	return cv->val;
-/*
-    QList<int> idx(_idx);
-    // !!! Atentie: este corect cu <=. Am adaugat + 1 in g
-    for(int i=0; i<=nr_dim;++i) {
-        idx[ dim[i] ] = dim_item[i];
-    }
-
-    CellValue cv =  _storage->getValue(idx);
-    if ( ! cv.isDouble() ) {
-        QString whatIs;
-        if ( cv.isInt() )
-            whatIs = "Dimension";
-        if ( cv.isString() )
-            whatIs += "String";
-
-        qDebug() << "Eval context(formula): required cell is not double, is "<< whatIs << "idx:" << idx;
-        return 0.;
-    }
-    //qDebug() << "acces complex:" << idx << " val:" <<  cv.getDouble();
-    return cv.getDouble();
-*/
 }
 
 static double      eval   (struct formula_struct *_formula, void* _cell){

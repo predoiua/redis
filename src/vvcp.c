@@ -101,7 +101,6 @@ int sliceRelease(slice* _slice){
 }
 // First index with them minimum level
 int elementResetCurrentPosition(elements* _el) {
-	int res = REDIS_ERR;
 	int32_t at_level = _el->curr_level;
 	for(int32_t i=0; i < _el->nr_elem; ++i){
 		int32_t level = getElementsElement(_el, i);
@@ -110,13 +109,21 @@ int elementResetCurrentPosition(elements* _el) {
 			return REDIS_OK; //Take the first element at this level
 		}
 	}
-	return res;
+	return REDIS_ERR;
 }
 
 int sliceResetElementsLevel(slice *_slice, uint32_t up_to) {
 	for(uint32_t i =0; i< up_to; ++i){
 		elements* el = getSliceElement(_slice, i);
-		el->curr_level = 0;
+		el->curr_level = el->min_level;
+	}
+	return REDIS_OK;
+}
+int sliceResetElementsLevelWithout(slice *_slice, uint32_t up_to,uint32_t without) {
+	for(uint32_t i =0; i< up_to; ++i){
+		if ( i == without ) continue;
+		elements* el = getSliceElement(_slice, i);
+		el->curr_level = el->min_level;
 	}
 	return REDIS_OK;
 }
@@ -142,21 +149,28 @@ int sliceResetElementsLevelFull(slice *_slice ) {
 			redisLog(REDIS_WARNING,"All levels on dimension : %d are uninitialized", i );
 			return REDIS_ERR;
 		}
+		// It can be ...
 		if ( 0 != min_level ) {
-			redisLog(REDIS_WARNING,"ERROR: For dimension : %d i have minimum level != 0 (%d)", i, min_level );
+			redisLog(REDIS_WARNING,"For dimension : %d i have minimum level != 0 (%d)", i, min_level );
 		}
 		el->curr_level = min_level;
+		el->min_level = min_level;
 		el->max_level = max_level;
 	}
 	return REDIS_OK;
 }
 
-int sliceResetElementsCurrElement(slice *_slice, uint32_t up_to) {
-	for(uint32_t i =0; i< up_to; ++i){
+int sliceResetElementsCurrElement(slice *_slice) {
+	int32_t sum_curr_levels = 0;
+	for(uint32_t i =0; i< _slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
+		sum_curr_levels += el->curr_level;
 		if ( REDIS_OK != elementResetCurrentPosition(el) )
 			return REDIS_ERR;
 	}
+	// All are simple elements ( lowest level )
+	if ( 0 == sum_curr_levels )
+		return REDIS_ERR;
 	return REDIS_OK;
 }
 
@@ -186,7 +200,7 @@ cell* cellBuildEmpty(cube* _cube ){
 
 cell* cellBuildCell(cell* _cell ){
 	cell *_cell_new = sdsdup ((sds)_cell );
-	initCellDin(_cell_new , _cell_new); // set idxs pointer.
+	initCellDin(_cell_new , (void*)_cell_new); // set idxs pointer.
 
 	return _cell_new;
 }
@@ -210,7 +224,15 @@ int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 	return REDIS_ERR;
 }
 int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
-
+// Trace
+	//============
+//		sds s = sdsempty();
+//		for(int i=0; i < _cell->nr_dim; ++i ){
+//			s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+//		}
+//		redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
+//		sdsfree(s);
+		//============
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	char* prog = NULL;
 	int   dim = -1;
@@ -250,19 +272,18 @@ int elementNextCurrElement(elements* _el){
 }
 int sliceRecomputeLevel(vvcc* _vvcc, redisDb *_db,cube *_cube,slice *_slice){
 
-	static int nr_tot_level = 0;
-
-	/*//Trace
-	sds s = sdsempty();
-	for(int i=0; i < _slice->nr_dim; ++i ){
-    	elements* el = getSliceElement(_slice, i);
-		s = sdscatprintf(s,"%d ", el->curr_level );
-	}
-	redisLog(REDIS_WARNING, " Number of cycles:%d Level:%s", ++nr_tot_level, s );
-	sdsfree(s);
-	 */
+	//Trace
+	//==============
+//	sds s = sdsempty();
+//	for(int i=0; i < _slice->nr_dim; ++i ){
+//    	elements* el = getSliceElement(_slice, i);
+//		s = sdscatprintf(s,"%d ", el->curr_level );
+//	}
+//	redisLog(REDIS_WARNING, "Levels:%s", s );
+//	sdsfree(s);
+	//==============
 	cell *_cell = cellBuildEmpty(_cube );
-	if ( REDIS_ERR == sliceResetElementsCurrElement(_slice, _slice->nr_dim) ){
+	if ( REDIS_ERR == sliceResetElementsCurrElement(_slice) ){
 		// No valid combination for this levels combination
 		return REDIS_OK;
 	}
@@ -300,7 +321,7 @@ int sliceRecomputeLevel(vvcc* _vvcc, redisDb *_db,cube *_cube,slice *_slice){
 
 	return REDIS_OK;
 }
-int sliceGetOverallMaxim(slice *_slice ){
+int32_t sliceGetOverallMaxim(slice *_slice ){
 	int slice_max_level = -1;
 	for(uint32_t i =0; i< _slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
@@ -309,6 +330,111 @@ int sliceGetOverallMaxim(slice *_slice ){
 	}
 	return slice_max_level;
 }
+int sliceResetAllElementsLevelWithout(slice *_slice, uint32_t without) {
+	for(uint32_t i =0; i< _slice->nr_dim; ++i){
+		if ( i == without ) continue;
+		elements* el = getSliceElement(_slice, i);
+		el->curr_level = el->min_level;
+	}
+	return REDIS_OK;
+}
+int increase_level(elements* el, uint32_t max_other_lvl){
+	if ( el->curr_level < max_other_lvl )
+		if( el->curr_level < el->max_level ) {
+			++el->curr_level;
+			return REDIS_OK;
+		}
+	return REDIS_ERR;
+}
+
+int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
+	if ( REDIS_ERR == sliceResetElementsLevelFull(_slice) ){
+		return REDIS_ERR;
+	}
+
+	int32_t slice_max_level = sliceGetOverallMaxim(_slice );
+	int32_t slice_level  = 1;
+	while(1){
+		int done_max_level = 0; // max_other_lvl is done or note
+		for(uint32_t i =0; i< _slice->nr_dim; ++i){
+        	elements* el = getSliceElement(_slice, i);
+        	el->curr_level = slice_level;
+        	if ( REDIS_OK != elementResetCurrentPosition(el) )
+        		continue;
+        	// For last elemnt, allow the rest of levels to touch same value
+        	uint32_t max_other_lvl;
+        	if ( !done_max_level ) {
+        		max_other_lvl = slice_level;
+        		done_max_level = 1;
+        	}else{
+        		max_other_lvl = slice_level - 1;
+        	}
+
+    		sliceResetAllElementsLevelWithout(_slice, i);
+    		redisLog(REDIS_WARNING,"Level :%d: set on dimension :%d:", slice_level, i);
+    		sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
+
+			uint32_t curr_dim = 0;
+			while(1) {
+				if ( i == curr_dim ) {
+					++curr_dim;
+					continue;
+				}
+				elements* el = getSliceElement(_slice, curr_dim);
+				if( REDIS_OK == increase_level(el, max_other_lvl) ) {
+					sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
+			  		sliceResetElementsLevelWithout(_slice, curr_dim, i);
+			  		curr_dim = 0;
+				}else {
+					if( (_slice->nr_dim - 1) == curr_dim){
+						break;//done
+					}else {
+						++curr_dim;
+					}
+				}
+			}
+		}
+		if (slice_level == slice_max_level )
+			break;
+		else
+		    ++slice_level;
+	}
+	return REDIS_OK;
+}
+
+/*
+ //Vers 2
+ slice lvl = 1:
+ while(1) {
+	 for ( i : 0 .. nr dim ){
+		 ok = dim(i)->set_level(slice_level);
+		 if ( !ok ) continue;
+		 max_other_lvl = i ==nr dim ? slice lvl : slice lvl - 1;
+		 reset_level( all - i)
+		 uint32_t curr_dim = 0;
+		 while(1) {
+			elements* el = getSliceElement(_slice, curr_dim);
+			ok = increase_lvl(curr_dim, max_other_lvl)
+			if ( ok )
+				 sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
+			else {
+				if( curr_dim = nr_dim)
+					break//done
+				else
+					sliceResetElementsLevel(_slice, curr_dim);
+					++curr_dim
+			}
+		 }
+	 }
+	if slice_lvl = max_lvl
+		break
+	else
+	    ++slice_lvl
+}
+*/
+/*
+// Vers 1. Pb 1 1 0 -> 2 1 0  instead of 2 0 0
+
 int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 
 	//Init Slice levels ( current and maxim )
@@ -316,21 +442,17 @@ int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 		return REDIS_ERR;
 	}
 	// loop invariants
-	int inital_run = 0;//!!<
 	uint32_t curr_dim = 0;
 	int slice_level  = 0;
 	int slice_max_level = sliceGetOverallMaxim(_slice );
 	//redisLog(REDIS_WARNING,"Overall slice max value : %d", slice_max_level);
 	while(1){
-		if ( !inital_run ) { // At first run all levels are 0, so no need recompute
-		   sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
-		   inital_run = 0;
-		}
+		sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
         // Made one change in slice.elements ( advance one index )
         while (1) {
         	elements* el = getSliceElement(_slice, curr_dim);
         	//if( REDIS_OK == elementNextCurrElement(el, slice_level) ) {
-        	if(    el->curr_level < el->max_level ){
+        	if( el->curr_level < el->max_level ){
         		if ( el->curr_level < slice_level ) {
             		// Now I have a new cell address as curr_elem in slice
 					++el->curr_level;
@@ -363,3 +485,4 @@ int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 	redisLog(REDIS_WARNING,"sliceSetValueUpward : This is not a valid output... Something gone wrong...");
 	return REDIS_ERR;
 }
+*/

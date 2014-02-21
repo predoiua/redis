@@ -90,6 +90,7 @@ typedef struct {
 	int32_t	curr_elem;  // An index < nr_elem
 	int32_t	curr_level; // at what level I am
 	int32_t max_level;  // Highest level on this dimension
+	int32_t min_level;  // Lowest level on this dimension
 	int32_t	*elems;
 } elements;
 #define getElementsSize(nr_elem)  (sizeof(elements) + nr_elem * sizeof(int32_t) )

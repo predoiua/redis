@@ -355,7 +355,13 @@ typedef	int	SOCKET;
 #define ANTLR3_API
 #define	ANTLR3_CDECL
 #define ANTLR3_FASTCALL
+
+//Seli . Check 32/64
+#if __x86_64__
 #define ANTLR3_USE_64BIT
+#else
+#define ANTLR3_USE_32BIT
+#endif
 
 #ifdef	__hpux
 

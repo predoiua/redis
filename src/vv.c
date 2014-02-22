@@ -6,10 +6,9 @@
 #include "redis.h"
 #include "vv.h"
 #include "vvfct.h"
-#include "vvi.h"
 #include "vvdb.h"
 #include "vvchangecollector.h"
-
+#include "vvfilter.h"
 
 void replace_store(redisDb *db,robj *key, sds store){
 	if (dbDelete(db,key)) {
@@ -210,7 +209,43 @@ void vvset(redisClient *c) {
     cellRelease(_cell);
     _vvdb->free(_vvdb);
 }
+void print_cell(cell* _cell){
+	sds s = sdsempty();
+	for(int i=0; i < _cell->nr_dim; ++i ){
+		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+	}
+	redisLog(REDIS_WARNING, "Print cell: result :%s ", s);
+	sdsfree(s);
+}
+int do_it_write_response(void* p1, void* p2 ){
+	vvcc* _vvcc = (vvcc*) p1;
+	cell* _cell = (cell*) p2;
+	print_cell(_cell);
+	vvdb* _vvdb =  (vvdb*)_vvcc->vvdb;
+	cell_val* target = _vvdb->getCellValue(_vvdb, _cell);
+	_vvcc->writeResponse(_vvcc, _cell, target);
 
+	return REDIS_OK;
+}
+
+int set_selected_items(redisClient *c, vvfilter *_vvfilter){
+	long long temp_nr;// Working variable
+	int cell_elem_stat_pos = 2; // 0 = cmd, 1 = cube name, 2 = first dim index ..
+	int nr_dim = *_vvfilter->_cube->nr_dim;
+	for(int i=0; i < nr_dim; ++i ){
+		if (getLongLongFromObject(c->argv[cell_elem_stat_pos+i], &temp_nr) != REDIS_OK) {
+			redisLog(REDIS_WARNING,"Invalid dimension item index. It must be numerical.");
+			return REDIS_ERR;
+		}
+		// Convention -1 = all
+		if ( -1 == temp_nr ){
+			_vvfilter->addSelectedAll(_vvfilter, i);
+		} else {
+			_vvfilter->addSelectedDi(_vvfilter, i, temp_nr);
+		}
+	}
+	return REDIS_OK;
+}
 void vvget(redisClient *c) {
 //=== Boilerplate code
 	// Build all required object
@@ -221,29 +256,27 @@ void vvget(redisClient *c) {
 		addReplyError(c,"Missing data objects");
 		return;
 	}
-	cell *_cell = cellBuildFromClient(c, &cube);
-	if ( NULL == _cell ) {
-		addReplyError(c,"Fail to build cell");
-		return;
-	}
+//	cell *_cell = cellBuildFromClient(c, &cube);
+//	if ( NULL == _cell ) {
+//		addReplyError(c,"Fail to build cell");
+//		return;
+//	}
 
 //==========
-	cell_val* target = _vvdb->getCellValue(_vvdb, _cell);
 	// Response
+	vvcc* _vvcc = vvccNew(c, _vvdb);
 
+	vvfilter* _vvfilter = vvfilterNew(&cube);
+	if( REDIS_OK == set_selected_items(c, _vvfilter) ) {
+		_vvfilter->exec( _vvfilter, _vvcc, do_it_write_response);
+	}
 
-//    void *replylen = NULL;
-//    long cell_resp = 0;
-//    replylen = addDeferredMultiBulkLength(c);
-//    write_cell_response(c, _cell, target, &cell_resp);
-//    setDeferredMultiBulkLength(c, replylen, cell_resp);
-	vvcc* _vvcc = vvccNew(c, c->db);
-	_vvcc->writeResponse(_vvcc, _cell, target);
 	_vvcc->flush(_vvcc);
 
     //Clear
+	_vvfilter->free(_vvfilter);
 	_vvcc->free(_vvcc);
-    cellRelease(_cell);
+//    cellRelease(_cell);
     _vvdb->free(_vvdb);
 
 }

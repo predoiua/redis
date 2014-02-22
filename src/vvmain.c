@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "vvi.h"
 
 char* cube_d;
 char* cube_m;

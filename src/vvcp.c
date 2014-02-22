@@ -1,5 +1,4 @@
 #include "redis.h"
-#include "vvi.h"
 
 #include "vv.h"
 #include "vvfct.h"
@@ -27,7 +26,7 @@ int cellSetValueDownward(vvcc *_vvcc, cube* _cube, cell* _cell, long double _val
 				,_slice
 				, next_dim);
 	} else {
-		redisLog(REDIS_WARNING, "Set value at index :%zu value: %.2f", _cell->idx, (double)_val);
+		//redisLog(REDIS_WARNING, "Set value : %.2f", (double)_val);
 		_vvcc->setValueWithResponse(_vvcc, _cell, _val);
 		sliceAddCell(_vvdb,_cube, _slice, _cell);
 	}
@@ -295,9 +294,6 @@ int sliceRecomputeLevel(vvcc* _vvcc, redisDb *_db,cube *_cube,slice *_slice){
 			elements* el = getSliceElement(_slice, i);
 			setCellIdx(_cell, i, el->curr_elem);
 		}
-//		if ( REDIS_OK != compute_index(_cube , _cell) ) {
-//			return REDIS_ERR;
-//		}
 		// Recompute cell
 		cellRecompute(_vvcc, _db, _cube, _cell);
 	   // Made one change in slice.elements ( advance one index )
@@ -418,88 +414,3 @@ int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 	}
 	return REDIS_OK;
 }
-
-/*
- //Vers 2
- slice lvl = 1:
- while(1) {
-	 for ( i : 0 .. nr dim ){
-		 ok = dim(i)->set_level(slice_level);
-		 if ( !ok ) continue;
-		 max_other_lvl = i ==nr dim ? slice lvl : slice lvl - 1;
-		 reset_level( all - i)
-		 uint32_t curr_dim = 0;
-		 while(1) {
-			elements* el = getSliceElement(_slice, curr_dim);
-			ok = increase_lvl(curr_dim, max_other_lvl)
-			if ( ok )
-				 sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
-			else {
-				if( curr_dim = nr_dim)
-					break//done
-				else
-					sliceResetElementsLevel(_slice, curr_dim);
-					++curr_dim
-			}
-		 }
-	 }
-	if slice_lvl = max_lvl
-		break
-	else
-	    ++slice_lvl
-}
-*/
-/*
-// Vers 1. Pb 1 1 0 -> 2 1 0  instead of 2 0 0
-
-int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
-
-	//Init Slice levels ( current and maxim )
-	if ( REDIS_ERR == sliceResetElementsLevelFull(_slice) ){
-		return REDIS_ERR;
-	}
-	// loop invariants
-	uint32_t curr_dim = 0;
-	int slice_level  = 0;
-	int slice_max_level = sliceGetOverallMaxim(_slice );
-	//redisLog(REDIS_WARNING,"Overall slice max value : %d", slice_max_level);
-	while(1){
-		sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
-        // Made one change in slice.elements ( advance one index )
-        while (1) {
-        	elements* el = getSliceElement(_slice, curr_dim);
-        	//if( REDIS_OK == elementNextCurrElement(el, slice_level) ) {
-        	if( el->curr_level < el->max_level ){
-        		if ( el->curr_level < slice_level ) {
-            		// Now I have a new cell address as curr_elem in slice
-					++el->curr_level;
-					sliceResetElementsLevel(_slice, curr_dim);
-					curr_dim = 0;
-					break;
-        		} else {
-        			if ( curr_dim == _slice->nr_dim  - 1) {
-        				++slice_level;
-        				curr_dim = 0;
-        			} else {
-						++curr_dim;
-        			}
-        		}
-        	} else {
-        		if( curr_dim == _slice->nr_dim - 1) {
-        			if ( slice_level < slice_max_level ) {
-        				++slice_level;
-        				curr_dim = 0;
-        			} else {
-        				// SUCCESS !! - Normal exit
-        				return REDIS_OK;
-        			}
-        		} else {
-        			++curr_dim;
-        		}
-        	}
-        }
-	}
-	redisLog(REDIS_WARNING,"sliceSetValueUpward : This is not a valid output... Something gone wrong...");
-	return REDIS_ERR;
-}
-*/

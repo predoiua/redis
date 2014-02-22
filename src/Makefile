@@ -106,7 +106,7 @@ REDIS_SERVER_NAME=redis-server
 REDIS_SENTINEL_NAME=redis-sentinel
 
 FINAL_CFLAGS+= -I.
-REDIS_SERVER_OBJ=vvcp.o vvi.o vv.o adlist.o ae.o anet.o dict.o redis.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o migrate.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o \
+REDIS_SERVER_OBJ=adlist.o ae.o anet.o dict.o redis.o sds.o zmalloc.o lzf_c.o lzf_d.o pqsort.o zipmap.o sha1.o ziplist.o release.o networking.o util.o object.o db.o replication.o rdb.o t_string.o t_list.o t_set.o t_zset.o t_hash.o config.o aof.o pubsub.o multi.o debug.o sort.o intset.o syncio.o migrate.o endianconv.o slowlog.o scripting.o bio.o rio.o rand.o memtest.o crc64.o bitops.o sentinel.o notify.o setproctitle.o \
 	antlr3baserecognizer.o antlr3basetree.o \
 	antlr3basetreeadaptor.o antlr3bitset.o antlr3collections.o \
 	antlr3commontoken.o antlr3commontree.o \
@@ -116,10 +116,12 @@ REDIS_SERVER_OBJ=vvcp.o vvi.o vv.o adlist.o ae.o anet.o dict.o redis.o sds.o zma
 	antlr3inputstream.o antlr3intstream.o antlr3lexer.o \
 	antlr3parser.o antlr3rewritestreams.o antlr3string.o \
 	antlr3tokenstream.o antlr3treeparser.o \
+	vvcp.o vv.o \
 	vvformula.o \
 	VVEval.o  VVEvalInit.o  VVExprLexer.o  VVExprParser.o \
 	hashtable.o \
-	vvdb.o  vvchangecollector.o vvlevelcollector.o qsort.o
+	vvdb.o  vvchangecollector.o vvlevelcollector.o qsort.o \
+	vvfilter.o
 
 REDIS_CLI_NAME=redis-cli
 REDIS_CLI_OBJ=anet.o sds.o adlist.o redis-cli.o zmalloc.o release.o anet.o ae.o crc64.o

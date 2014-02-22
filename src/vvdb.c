@@ -14,7 +14,7 @@ static char* 			getFormula 		(struct vvdb_struct *_vvdb, int dim, int di);
 static up_links 		getUpLinks 		(struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
 
 // Internal
-static int compute_index(cube* _cube,  cell* _cell );
+static size_t compute_index(cube* _cube,  cell* _cell );
 //static int cubeBuild(redisDb *_db, robj *_cube_code, cube *_cube );
 static int   getIdFromHash (redisDb *_db, robj *hash_code, char* field_code);
 // return the pointer to cube data
@@ -161,7 +161,7 @@ static	int 	getDimItemIdx   (struct vvdb_struct * _vvdb, int dim_idx, char* di_c
     return idx;
 }
 
-static int compute_index(cube* _cube,  cell* _cell ) {
+static size_t compute_index(cube* _cube,  cell* _cell ) {
 	int nr_dim;
 	size_t k=0;
 	nr_dim = *(_cube->nr_dim);
@@ -175,20 +175,16 @@ static int compute_index(cube* _cube,  cell* _cell ) {
         k = k * nr_elem + idx_dis;
     }
     //redisLog(REDIS_WARNING,"Flat index: %zu\n",k);
-    _cell->idx = k;
-    return REDIS_OK;
+    return k;
 }
 
 static	void*  getCellValue	(struct vvdb_struct *_vvdb, void* _cell) {
 	cell	*_c = (cell	*)_cell;
 	cube    *_cube = (cube*)_vvdb->cube;
 
-	if( REDIS_OK != compute_index(_cube, _c ) ){
-		redisLog(REDIS_WARNING,"Fail to compute  flat index");
-		_c->idx = 0; // :(
-	}
+	size_t idx = compute_index(_cube, _c );
 
-	return (cell_val*)_vvdb->cube_data + _c->idx;
+	return (cell_val*)_vvdb->cube_data + idx;
 }
 
 static int32_t getLevel( struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx){

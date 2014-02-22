@@ -32,8 +32,10 @@ vvlvl* vvlvlNew(int nrOfDimensions) {
 }
 
 static 	int  			vvlvl_free     			(struct vvlvl_struct *_vvlvl) {
-	sdsfree((sds)_vvlvl );
-	_vvlvl = 0;
+	sdsfree((sds)_vvlvl->levels);
+	sdsfree((sds)_vvlvl->weights);
+	sdsfree((sds)_vvlvl->idxs);
+	sdsfree((sds)_vvlvl );_vvlvl = 0;
 	return REDIS_OK;
 }
 static  int				addCurrentLevel			(struct vvlvl_struct *_vvlvl, void* _s){

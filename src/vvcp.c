@@ -200,15 +200,25 @@ int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 		char** formula,
 		int*  dimension
 		) {
+	/*
+
+	 for fm : formula_mapping   , key: (cube)_(MEASURE_dim_id)_(di_id)
+	 	 dim = fm->dim
+	 	 if ( cell idx at dim is complex)
+	 	  	 if  di_index match (di  = fm->di)
+	 	  	 return fm_formula, dim
+	 */
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	for(int i=0;i<*_cube->nr_dim;++i){
 		size_t di = getCellDiIndex (_cell, i);
 		int32_t lvl = _vvdb->getLevel(_vvdb,i, di);
 		if (0 != lvl){
 			*formula = _vvdb->getFormula(_vvdb, i, di );
-			*dimension = i;
-			_vvdb->free(_vvdb);
-			return REDIS_OK;
+			if ( NULL != *formula ) {
+				*dimension = i;
+				_vvdb->free(_vvdb);
+				return REDIS_OK;
+			}
 		}
 	}
 	_vvdb->free(_vvdb);
@@ -231,7 +241,7 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 		redisLog(REDIS_WARNING, "Fail to find the appropriate formula for the cell." );
 		return REDIS_ERR;
 	}
-	//redisLog(REDIS_WARNING, "Process formula:%s: dim:%d", prog, dim );
+	redisLog(REDIS_WARNING, "Process formula:%s: dim:%d", prog, dim );
 
 	formula *f = formulaNew(
 			_db,
@@ -240,7 +250,7 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 			);
 
 	long double val = f->eval(f, _cell);
-	//redisLog(REDIS_WARNING, "Value return after formula eval:%f", val );
+	redisLog(REDIS_WARNING, "Value return after formula eval:%f", (double)val );
 	_vvcc->setValueWithResponse(_vvcc, _cell, val);
 
 	f->free(f);

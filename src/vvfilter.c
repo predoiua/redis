@@ -6,16 +6,19 @@
  */
 
 #include "vvfilter.h"
+#include "vvfct.h"
 
 // Class implementation
 static 	int  			vvfilter_free     		(struct vvfilter_struct *_vvfilter);
 static 	int 			addSelectedAll     	 	(struct vvfilter_struct *_vvfilter, int dim_idx);
-static 	int 			addSelectedDi     	 	(struct vvfilter_struct *_vvfilter, int dim_idx, int di_idx);
+static 	int 			addSelectedDi     	 	(struct vvfilter_struct *_vvfilter, int dim_idx, int32_t di_idx);
 static 	int				exec					(struct vvfilter_struct *_vvfilter, void* obj, int (*do_it)(void * obj, void *cell));
 static 	int				compact					(struct vvfilter_struct *_vvfilter);
 //Internal
 static  int 			resetStructCurrElement(slice* _slice);
 static  int				fillCell(cell* _cell, slice* _slice);
+//external user. !! In default generated , the type is int => pointer truncation on 64
+//void* sliceBuild(void* );
 
 static  int 			resetStructCurrElement(slice* _slice){
 	for(uint32_t i=0; i< _slice->nr_dim; ++i) {
@@ -105,8 +108,16 @@ static 	int 			addSelectedAll     	 	(struct vvfilter_struct *_vvfilter, int dim
 	return REDIS_OK;
 }
 
-static 	int 			addSelectedDi     	 	(struct vvfilter_struct *_vvfilter, int dim_idx, int di_idx){
+static 	int 			addSelectedDi     	 	(struct vvfilter_struct *_vvfilter, int dim_idx, int32_t di_idx){
+	if ( _vvfilter->_slice->nr_dim <= dim_idx ) {
+		redisLog(REDIS_WARNING,"Invalid dimension index :%d and max allowed is :%d", (int)dim_idx, (int) _vvfilter->_slice->nr_dim);
+		return REDIS_ERR;
+	}
 	elements* el=getSliceElement(_vvfilter->_slice, dim_idx);
+	if ( el->nr_elem <= di_idx ) {
+		redisLog(REDIS_WARNING,"Invalid dimension item index :%d and max allowed is :%d", (int)di_idx, (int)el->nr_elem);
+		return REDIS_ERR;
+	}
 	setElementsElement(el, di_idx, di_idx);
 	return REDIS_OK;
 }
@@ -120,8 +131,11 @@ vvfilter* vvfilterNew(cube* _cube) {
 	_vvfilter->exec 					= exec;
 	_vvfilter->free 					= vvfilter_free;
 	//Members
-	_vvfilter->_cube				= _cube;
-	_vvfilter->_slice               =  sliceBuild(_cube);
+	_vvfilter->_cube				 = _cube;
+	_vvfilter->_slice               =  _sliceBuild(_cube);
+	redisLog(REDIS_WARNING,"Slice after build is :%d",  _vvfilter->_slice->nr_dim);
+
+
 	return _vvfilter;
 }
 

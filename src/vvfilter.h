@@ -14,7 +14,7 @@ typedef	struct vvfilter_struct{
 	cube	    *_cube;
 	slice		*_slice;
 	int 			(*addSelectedAll)     	 (struct vvfilter_struct *_vvfilter, int dim_idx);
-	int 			(*addSelectedDi)     	 (struct vvfilter_struct *_vvfilter, int dim_idx, int di_idx);
+	int 			(*addSelectedDi)     	 (struct vvfilter_struct *_vvfilter, int dim_idx, int32_t di_idx);
 	int				(*compact)				 (struct vvfilter_struct *_vvfilter);
 	int				(*exec)					 (struct vvfilter_struct *_vvfilter, void* obj, int 			(*do_it)(void * obj, void *cell));
 	int 			(*free)     	 		 (struct vvfilter_struct *_vvfilter);

@@ -20,9 +20,10 @@ return
 1 0 0
 */
 typedef	struct vvlvl_struct{
-	sds			levels;  // 1 element = nrOfDimensions of int
-	sds			weights; // 1 element = int = sum of level in a level set
-	sds			idxs;	  // 1 element = int = index of level order by weight
+	sds			levels;     // 1 element = nrOfDimensions of int
+	sds			weights;    // 1 element = int = sum of level in a level set
+	sds			max_levels; // 1 element = max level on cell
+	sds			idxs;	    // 1 element = int = index of level order by weight
 	int				nrOfElements;
 	int 			nrOfDimensions;
 	int 			(*addCurrentLevel)		(struct vvlvl_struct *_vvlvl, void* _slice);

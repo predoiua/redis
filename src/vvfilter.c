@@ -55,7 +55,7 @@ static 	int		exec (struct vvfilter_struct *_vvfilter, void* obj, int	(*do_it)(vo
         while(1) {
         	elements* el=getSliceElement(_slice, curr_dim);
             ++el->curr_elem;
-            if( el->curr_elem == (el->nr_elem ) ){
+            if( el->curr_elem == el->nr_elem ){ // like std::end. 1 over the end.
                 if( curr_dim == (_slice->nr_dim - 1) ){
                     return REDIS_OK;
                 } else {
@@ -69,7 +69,6 @@ static 	int		exec (struct vvfilter_struct *_vvfilter, void* obj, int	(*do_it)(vo
             }
         }
     }
-	redisLog(REDIS_WARNING,"xx.6");
 	cellRelease(_cell);
 	return REDIS_OK;
 }

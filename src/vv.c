@@ -129,19 +129,21 @@ int sliceAddUplinks(vvcc *_vvcc, slice* _slice, vvdb* _vvdb) {
 	for( uint32_t i =0; i <_slice->nr_dim; ++i){
 		elements* el = getSliceElement(_slice, i);
 		// j = di index
-		for(uint32_t j=0; j< el->nr_elem; ++j ){
-			//redisLog(REDIS_WARNING,"Uplink dim:%d, di:%d", i, j);
-			uint32_t level = getElementsElement(el, j);
-			if ( -1 == level ){
+		for(int32_t j=0; j< el->nr_elem; ++j ){
+			int32_t level = getElementsElement(el, j);
+			if ( -1 != level ){
 				// _vvdb->getUpLinks()
 				up_links links = _vvdb->getUpLinks(_vvdb, i, j);
 				if (NULL != links){
 					// _vvdb->getLevel
 					// _slice->set level
+					//redisLog(REDIS_WARNING,"Found uplink dim:%d di:%d: level:%d nr parents :%d",i, j, level, nr_up_links(links));
 					for(int k=0; k <nr_up_links(links); ++k){
-						int32_t level = _vvdb->getLevel(_vvdb, i, k);
-						if ( level != -1 ) {
-							setElementsElement(el, k ,level);
+						int parent_idx =  *(links+k);
+						int32_t level = _vvdb->getLevel(_vvdb, i, parent_idx);
+						//redisLog(REDIS_WARNING,"- Idx parent :%d level:%d", parent_idx, level);
+						if ( level != -1 ) { // -1 = not found
+							setElementsElement(el, parent_idx ,level);
 						}
 					}
 				}
@@ -166,11 +168,7 @@ void vvset(redisClient *c) {
 	// Build all required object
 	cube cube;
 	if ( REDIS_OK !=  cubeBuild(c, c->argv[1], &cube) ) return;
-	redisLog(REDIS_WARNING, "Cube numberic_code:%d nr dim:%d nr di in 1st:%d", (int) *cube.numeric_code, (int) *cube.nr_dim, (int) *cube.nr_di);
-	for(int i =0 ; i< *cube.nr_dim; ++i){
-		redisLog(REDIS_WARNING, "Nr di:%d or %d", (int) *(cube.nr_di + i), getCubeNrDi((&cube),i));
 
-	}
 	vvdb* _vvdb = vvdbNew(c->db, &cube);
 	if( NULL == _vvdb ){
 		addReplyError(c,"Missing data objects");
@@ -220,7 +218,7 @@ void print_cell(cell* _cell){
 int do_it_write_response(void* p1, void* p2 ){
 	vvcc* _vvcc = (vvcc*) p1;
 	cell* _cell = (cell*) p2;
-	print_cell(_cell);
+	//print_cell(_cell);
 	vvdb* _vvdb =  (vvdb*)_vvcc->vvdb;
 	cell_val* target = _vvdb->getCellValue(_vvdb, _cell);
 	_vvcc->writeResponse(_vvcc, _cell, target);

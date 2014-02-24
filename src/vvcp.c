@@ -16,7 +16,7 @@ int cellSetValueDownward(vvcc *_vvcc, cube* _cube, cell* _cell, long double _val
 		, slice* _slice
 		, int curr_dim  // Algorithm parameters
 		){
-	sliceAddCell(_vvdb,_cube, _slice, _cell); // FIXME: It is ok here ?
+	//sliceAddCell(_vvdb,_cube, _slice, _cell); // FIXME: It is ok here ?
 
 	int di_idx = getCellDiIndex(_cell, curr_dim);
 	if ( ( *_cube->nr_dim - 1 )!= curr_dim ) {
@@ -57,7 +57,6 @@ int cellSetValueDownward(vvcc *_vvcc, cube* _cube, cell* _cell, long double _val
 
 
 slice* sliceBuild(cube *_cube){
-	static uint32_t ELEMENT_DEF_LEVEL = -1;
 	uint32_t nr_dim = *_cube->nr_dim;
 	sds res_space =   sdsnewlen(NULL, getSliceSize(nr_dim));
 	slice *res = (slice*)res_space; initSlice(res, res_space);
@@ -70,7 +69,7 @@ slice* sliceBuild(cube *_cube){
 		el->nr_elem = nr_di;
 		el->max_level = 0; // Will be recomputed before algorithm run.
 		for(uint32_t j=0; j< nr_di; ++j) {
-			setElementsElement(el, j, ELEMENT_DEF_LEVEL);
+			setElementsElement(el, j, -1);
 		}
 		//redisLog(REDIS_WARNING,"Done Element. Position : %d element address : %p", i,(void*) el);
 		setSliceElement(res, i, el);
@@ -119,14 +118,6 @@ int sliceResetElementsLevel(slice *_slice, uint32_t up_to) {
 	}
 	return REDIS_OK;
 }
-int sliceResetElementsLevelWithout(slice *_slice, uint32_t up_to,uint32_t without) {
-	for(uint32_t i =0; i< up_to; ++i){
-		if ( i == without ) continue;
-		elements* el = getSliceElement(_slice, i);
-		el->curr_level = el->min_level;
-	}
-	return REDIS_OK;
-}
 
 int sliceResetElementsLevelFull(slice *_slice ) {
 	uint32_t up_to = _slice->nr_dim;
@@ -143,7 +134,7 @@ int sliceResetElementsLevelFull(slice *_slice ) {
 					max_level = level;
 			}
 		}
-		redisLog(REDIS_WARNING,"Dimension : %d min lvl:%d max lvl: %d", i, min_level, max_level );
+		//redisLog(REDIS_WARNING,"Dimension : %d min lvl:%d max lvl: %d", i, min_level, max_level );
 
 		if (INT32_MAX == min_level || INT32_MIN ==  max_level){
 			redisLog(REDIS_WARNING,"All levels on dimension : %d are uninitialized", i );
@@ -249,7 +240,7 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 			);
 
 	long double val = f->eval(f, _cell);
-
+	//redisLog(REDIS_WARNING, "Value return after formula eval:%f", val );
 	_vvcc->setValueWithResponse(_vvcc, _cell, val);
 
 	f->free(f);
@@ -274,13 +265,13 @@ int sliceRecomputeLevel(vvcc* _vvcc, redisDb *_db,cube *_cube,slice *_slice){
 
 	//Trace
 	//==============
-	sds s = sdsempty();
-	for(int i=0; i < _slice->nr_dim; ++i ){
-    	elements* el = getSliceElement(_slice, i);
-		s = sdscatprintf(s,"%d ", el->curr_level );
-	}
-	redisLog(REDIS_WARNING, "Levels:%s", s );
-	sdsfree(s);
+//	sds s = sdsempty();
+//	for(int i=0; i < _slice->nr_dim; ++i ){
+//    	elements* el = getSliceElement(_slice, i);
+//		s = sdscatprintf(s,"%d ", el->curr_level );
+//	}
+//	redisLog(REDIS_WARNING, "Levels:%s", s );
+//	sdsfree(s);
 	//==============
 	cell *_cell = cellBuildEmpty(_cube );
 	if ( REDIS_ERR == sliceResetElementsCurrElement(_slice) ){
@@ -327,90 +318,49 @@ int32_t sliceGetOverallMaxim(slice *_slice ){
 	}
 	return slice_max_level;
 }
-int sliceResetAllElementsLevelWithout(slice *_slice, uint32_t without) {
-	for(uint32_t i =0; i< _slice->nr_dim; ++i){
-		if ( i == without ) continue;
-		elements* el = getSliceElement(_slice, i);
-		el->curr_level = el->min_level;
-	}
-	return REDIS_OK;
-}
-int increase_level(elements* el, uint32_t max_other_lvl){
-	if ( el->curr_level < max_other_lvl )
-		if( el->curr_level < el->max_level ) {
-			++el->curr_level;
-			return REDIS_OK;
-		}
-	return REDIS_ERR;
-}
-
 int sliceSetValueUpward(vvcc *_vvcc, redisDb *_db, cube *_cube,slice *_slice) {
 	if ( REDIS_ERR == sliceResetElementsLevelFull(_slice) ){
 		return REDIS_ERR;
 	}
-	int32_t slice_max_level = sliceGetOverallMaxim(_slice );
-	int32_t slice_level  = 1;
-	while(1){
-		//One cycle per slice_level
-		vvlvl* _vvlvl = vvlvlNew(_slice->nr_dim);
+	int done = 0;// exit from outer loop (instead of return)
+	vvlvl* _vvlvl = vvlvlNew(_slice->nr_dim);
+	while(1) {
+		_vvlvl->addCurrentLevel( _vvlvl, _slice);
 
-		int done_max_level = 0; // max_other_lvl is done or note
-		for(uint32_t i =0; i< _slice->nr_dim; ++i){
-        	elements* el = getSliceElement(_slice, i);
-        	el->curr_level = slice_level;
-        	if ( REDIS_OK != elementResetCurrentPosition(el) )
-        		continue;
-        	// For last elemnt, allow the rest of levels to touch same value
-        	uint32_t max_other_lvl;
-        	if ( !done_max_level ) {
-        		max_other_lvl = slice_level;
-        		done_max_level = 1;
-        	}else{
-        		max_other_lvl = slice_level - 1;
-        	}
-
-    		sliceResetAllElementsLevelWithout(_slice, i);
-    		//redisLog(REDIS_WARNING,"Level :%d: set on dimension :%d:", slice_level, i);
-    		//sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
-    		_vvlvl->addCurrentLevel( _vvlvl, _slice);
-
-			uint32_t curr_dim = 0;
-			while(1) {
-				if ( i == curr_dim ) {
-					++curr_dim;
-					continue;
-				}
-				elements* el = getSliceElement(_slice, curr_dim);
-				if( REDIS_OK == increase_level(el, max_other_lvl) ) {
-					//sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
-					_vvlvl->addCurrentLevel( _vvlvl, _slice);
-			  		sliceResetElementsLevelWithout(_slice, curr_dim, i);
-			  		curr_dim = 0;
-				}else {
-					if( (_slice->nr_dim - 1) == curr_dim){
-						break;//done
-					}else {
-						++curr_dim;
-					}
-				}
-			}
+		int curr_dim = 0;
+        while(1) {
+        	elements* el=getSliceElement(_slice, curr_dim);
+            ++el->curr_level;
+            if( el->curr_level == el->max_level + 1 ){ // like std::end. 1 over the end.
+                if( curr_dim == (_slice->nr_dim - 1) ){
+                	// we are done.
+                	done = 1;
+                	break;
+                    //return REDIS_OK;
+                } else {
+                    // cascade
+                	el->curr_level = 0;
+                    ++curr_dim;
+                }
+            } else {
+                // normal
+                break;
+            }
+        }
+        if ( done )
+        	break;
+    }
+	_vvlvl->sort(_vvlvl);
+	// Now get sorted level, and recompute level
+	for(int i=0;i<_vvlvl->nrOfElements;++i){
+		int* lvls =  _vvlvl->getLevels(_vvlvl, i);
+		for(uint32_t j =0; j< _slice->nr_dim; ++j){
+			elements* el = getSliceElement(_slice, j);
+			el->curr_level = lvls[j];
 		}
-		_vvlvl->sort(_vvlvl);
-		// Now get sorted level, and recompute level
-		for(int i=0;i<_vvlvl->nrOfElements;++i){
-			int* lvls =  _vvlvl->getLevels(_vvlvl, i);
-			for(uint32_t j =0; j< _slice->nr_dim; ++j){
-				elements* el = getSliceElement(_slice, j);
-				el->curr_level = lvls[j];
-			}
-			sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
-		}
-		_vvlvl->free(_vvlvl);
-
-		if (slice_level == slice_max_level )
-			break;
-		else
-		    ++slice_level;
+		sliceRecomputeLevel(_vvcc, _db, _cube,_slice);
 	}
+	_vvlvl->free(_vvlvl);
+
 	return REDIS_OK;
 }

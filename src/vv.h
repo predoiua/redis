@@ -16,10 +16,6 @@ typedef struct {
 	double  val; // 4 bites
 } cell_val;
 
-typedef int* up_links;
-//#define nr_up_links(up_links) ( sdslen((sds)up_links)/4 )
-
-
 typedef struct{
 	uint32_t	nr_dim; // same as nr of dim in cube
 	size_t		*idxs;   // an array of di index in each dimension
@@ -43,19 +39,24 @@ typedef struct{
 
 typedef struct {
 	uint32_t *numeric_code;// an numerical identifier for cube
+	uint32_t *measure_dim_idx;// idx of measure dimension
 	uint32_t *nr_dim;//
 	uint32_t *nr_di; // size = nr_dim. nr of di in each dim
 } cube;
-
-#define getCubeSize(nr_elem)  ( (nr_elem + 2 ) * sizeof(uint32_t) )
+// Is the size of Redis obj
+#define getCubeSize(nr_elem)  ( (nr_elem + 3 ) * sizeof(uint32_t) )
 #define initCube(_str,_ptr) do { \
-	(_str)->numeric_code 	= (uint32_t *)_ptr; \
-	(_str)->nr_dim 		= (uint32_t *)((uint32_t *)_ptr + 1); \
-	(_str)->nr_di 		= (uint32_t *)((uint32_t *)_ptr + 2); \
+		(_str)->numeric_code 		= (uint32_t *)_ptr; \
+		(_str)->measure_dim_idx 	= (uint32_t *)((uint32_t *)_ptr + 1); \
+		(_str)->nr_dim 				= (uint32_t *)((uint32_t *)_ptr + 2); \
+		(_str)->nr_di 				= (uint32_t *)((uint32_t *)_ptr + 3); \
 } while(0);
 
 #define setCubeNrDims(_str,_nr_dims) do { \
 		*((_str)->nr_dim ) = (uint32_t)_nr_dims; \
+} while(0);
+#define setCubeMeasureDimIdx(_str,_measure_idx) do { \
+		*((_str)->measure_dim_idx ) = (uint32_t)_measure_idx; \
 } while(0);
 #define setCubeNumericCode(_str,_numeric_code) do { \
 		*((_str)->numeric_code ) = (uint32_t)_numeric_code; \
@@ -117,5 +118,16 @@ typedef struct {
 } while(0);
 #define getSliceElement(_sl,_idx)  (elements*)(*(_sl->ptr + _idx ))
 
+
+typedef int* up_links;
+//#define nr_up_links(up_links) ( sdslen((sds)up_links)/4 )
+
+typedef int* formula_selector;
+//3 integer fields
+//#define nr_formula_selectors(_fs) ( sdslen((sds)_fs)/ (3*4) )
+#define next_formula_selector(_fs,_idx)  (formula_selector)((int*)_fs + _idx * 3 )
+#define getFormulaSelectorDimension(_fs)  *((int*)_fs + 0 )
+#define getFormulaSelectorFormulaDimension(_fs)  *((int*)_fs + 1 )
+#define getFormulaSelectorFormulaFormula(_fs)  *((int*)_fs + 2 )
 
 #endif

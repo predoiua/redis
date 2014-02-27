@@ -18,21 +18,23 @@ typedef	struct vvdb_struct{
 	void							*cube_data;
 	//void			(*setValue)    (struct vvdb_struct * _vvdb, double val);
 	// get a dimension index for a code
-	int 			(*getDimIdx)     	 		(struct vvdb_struct * _vvdb, char* dim_code);
+	int 				(*getDimIdx)     	 		(struct vvdb_struct * _vvdb, char* dim_code);
 	// get a dimension item index for a code
-	int 			(*getDimItemIdx)     		(struct vvdb_struct * _vvdb, int dim_idx, char* di_code);
+	int 				(*getDimItemIdx)     		(struct vvdb_struct * _vvdb, int dim_idx, char* di_code);
 
-	up_links 		(*getUpLinks) 				(struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
+	up_links 			(*getUpLinks) 				(struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
+	formula_selector	(*getFormulaSelector) 		(struct vvdb_struct *_vvdb, uint32_t di);
 
 	// get , cv valud
-	void*      		(*getCellValue)				(struct vvdb_struct *_vvdb, void* _cell);
+	void*      			(*getCellValue)				(struct vvdb_struct *_vvdb, void* _cell);
 
-	int32_t  		(*getLevel)					(struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
-	di_children* 	(*getDiChildren) 			(struct vvdb_struct *_vvdb, int dim, int di);
+	int32_t  			(*getLevel)					(struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
+	di_children* 		(*getDiChildren) 			(struct vvdb_struct *_vvdb, int dim, int di);
 
-	char* 			(*getFormula) 				(struct vvdb_struct *_vvdb, int dim, int di);
+	char* 				(*getFormula) 				(struct vvdb_struct *_vvdb, int dim, int di);
+	char* 				(*getSpecialFormula) 		(struct vvdb_struct *_vvdb, int measure_dim, int measure_di, int formula_id);
 	//
-	int 			(*free)     				(struct vvdb_struct * _vvdb);
+	int 				(*free)     				(struct vvdb_struct * _vvdb);
 } vvdb;
 
 vvdb* vvdbNew(void *_db, void* _cube);

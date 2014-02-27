@@ -40,20 +40,22 @@ int decode_cell_idx(redisClient *c, cell *cell){
 
 
 /*
-#     cube_code   cube_code     d1_nr     d2_nr   d3_nr
-vvcube      c1         100         20        3      44
+#     cube_code   cube_code     d1_nr     d2_nr   d3_nr   measure_dim_idx
+vvcube      c1         100         20        3      44        0
 */
 void vvcube(redisClient *c) {
 	long long cell_nr = 1; // Nr cell in the cube
-	long long cube_code_number = 0; // A numerical code for cube
-	//
-	// Compute some useful info
-	//
+	long long cube_code_number; // A numerical code for cube
 	if (getLongLongFromObject(c->argv[2], &cube_code_number) != REDIS_OK) {
 		addReplyError(c,"Second argument( number of dim) is not a number");
 		return;
 	}
-	long long nr_dim = c->argc - 3;
+	long long measure_dim_idx;//idx of measure dimension
+	if (getLongLongFromObject(c->argv[ c->argc - 1], &measure_dim_idx) != REDIS_OK) {
+		addReplyError(c,"Last argument ( measure dimension index ) is not a number");
+		return;
+	}
+	int nr_dim = c->argc - 4;
 	sds cube_dim_store = sdsempty();
 	// Build cube dim store
 	cube_dim_store = sdsgrowzero(cube_dim_store, getCubeSize(nr_dim)  );
@@ -61,6 +63,8 @@ void vvcube(redisClient *c) {
 	initCube(&_cube, cube_dim_store);
 	setCubeNrDims(&_cube, nr_dim);
 	setCubeNumericCode(&_cube, cube_code_number);
+	setCubeMeasureDimIdx(&_cube, measure_dim_idx);
+
 	long long temp_nr;// Working variable
 	for(int i=0; i < nr_dim; ++i ){
 		if (getLongLongFromObject(c->argv[3+i], &temp_nr) != REDIS_OK) {
@@ -157,6 +161,9 @@ int sliceAddUplinks(vvcc *_vvcc, slice* _slice, vvdb* _vvdb) {
    vvset cubecode di1 di2         dix value
    vvset c1 1 1 1 100.
  */
+int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
+		char** formula,
+		int*  dimension);
 void vvset(redisClient *c) {
 	long double target=0.;
 	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
@@ -181,6 +188,19 @@ void vvset(redisClient *c) {
 		return;
 	}
 
+//	char formula[2000];
+//	char* f = formula;
+//	int dimension;
+//	int res;
+//	res = getFormulaAndDim(c->db,&cube,_cell,
+//			&f, //char** formula,
+//			&dimension// int*  dimension
+//			);
+//	redisLog(REDIS_WARNING, "done");
+//    redisLog(REDIS_WARNING, "Result:%d formula :%s dimension :%d ", res,  f, dimension);
+//    addReplyError(c,"xxxxxxx");
+//    return;
+
 // Response
 	vvcc* _vvcc = vvccNew(c, _vvdb);
 // Cube changes
@@ -192,6 +212,7 @@ void vvset(redisClient *c) {
     		,_slice
     		,  0  // Algorithm parameters
     		);
+
 
     // Add up links
     sliceAddUplinks(_vvcc,_slice, _vvdb);

@@ -190,58 +190,98 @@ cell* cellBuildEmpty(cube* _cube ){
 }
 
 cell* cellBuildCell(cell* _cell ){
-	cell *_cell_new = sdsdup ((sds)_cell );
+	cell *_cell_new = (cell *)sdsdup ((sds)_cell );
 	initCellDin(_cell_new , (void*)_cell_new); // set idxs pointer.
 
 	return _cell_new;
 }
 
+// Basic implementation
+int getFormulaAndDimSimple(vvdb *_vvdb, cube* _cube, cell* _cell,
+		char** formula,
+		int*  dimension
+		) {
+	for(int i=0;i<*_cube->nr_dim;++i){
+		size_t di = getCellDiIndex (_cell, i);
+//		int32_t lvl = _vvdb->getLevel(_vvdb,i, di);
+//		if (0 != lvl)
+		*formula = _vvdb->getFormula(_vvdb, i, di );
+		if ( NULL != *formula ) {
+			*dimension = i;
+			return REDIS_OK;
+		}
+	}
+	return REDIS_ERR;
+}
+
+
 int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 		char** formula,
 		int*  dimension
 		) {
-	/*
-
-	 for fm : formula_mapping   , key: (cube)_(MEASURE_dim_id)_(di_id)
-	 	 dim = fm->dim
-	 	 if ( cell idx at dim is complex)
-	 	  	 if  di_index match (di  = fm->di)
-	 	  	 return fm_formula, dim
-	 */
+	int res = REDIS_OK;
 	vvdb *_vvdb = vvdbNew(_db,_cube);
-	for(int i=0;i<*_cube->nr_dim;++i){
-		size_t di = getCellDiIndex (_cell, i);
-		int32_t lvl = _vvdb->getLevel(_vvdb,i, di);
-		if (0 != lvl){
-			*formula = _vvdb->getFormula(_vvdb, i, di );
-			if ( NULL != *formula ) {
-				*dimension = i;
-				_vvdb->free(_vvdb);
-				return REDIS_OK;
-			}
+	uint32_t measure_di_index = (uint32_t) getCellDiIndex(_cell, *_cube->measure_dim_idx);
+	formula_selector fs = _vvdb->getFormulaSelector(_vvdb, measure_di_index);
+
+
+	for(int i=0;i<nr_formula_selectors(fs);++i){
+		formula_selector _fs = next_formula_selector(fs, i);
+
+		int fs_dim		  = getFormulaSelectorDimension(_fs);
+		int fs_formula_id = getFormulaSelectorFormulaFormula(_fs);
+
+		redisLog(REDIS_WARNING, "Formula match values dim:%d formula_id:%d target dimension:%d", fs_dim, fs_formula_id, getFormulaSelectorFormulaDimension(_fs)  );
+
+		if ( -2 == fs_formula_id ) {//Non aggregable measure
+			res = REDIS_ERR;
+			break;
 		}
+
+		//uint32_t working_di = (uint32_t) getCellDiIndex(_cell, i);//*_cube->measure_dim_idx);
+		if ( -1 == fs_formula_id ){ // All ( Any ) formula
+
+			res = getFormulaAndDimSimple(_vvdb, _cube,  _cell,
+					formula,
+					dimension);
+			break;
+		}
+
+		*dimension = getFormulaSelectorFormulaDimension(_fs);
+		*formula = _vvdb->getSpecialFormula(_vvdb,  *_cube->measure_dim_idx, measure_di_index, fs_formula_id );
+		break;
 	}
+
 	_vvdb->free(_vvdb);
-	return REDIS_ERR;
+	return res;
 }
+
 int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
-// Trace
-	//============
-//		sds s = sdsempty();
-//		for(int i=0; i < _cell->nr_dim; ++i ){
-//			s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
-//		}
-//		redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
-//		sdsfree(s);
-		//============
+
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	char* prog = NULL;
 	int   dim = -1;
 	if ( REDIS_OK != getFormulaAndDim( _db,_cube,_cell, &prog, &dim) ){
-		redisLog(REDIS_WARNING, "Fail to find the appropriate formula for the cell." );
+		//redisLog(REDIS_WARNING, "Fail to find the appropriate formula for the cell." );
+		_vvdb->free(_vvdb);
 		return REDIS_ERR;
 	}
-	redisLog(REDIS_WARNING, "Process formula:%s: dim:%d", prog, dim );
+	if ( NULL == prog){
+		redisLog(REDIS_WARNING, "ERROR : Return formula == null, but return code in OK." );
+		_vvdb->free(_vvdb);
+		return REDIS_ERR;
+	}
+	// Trace
+	//============
+	sds s = sdsempty();
+	for(int i=0; i < _cell->nr_dim; ++i ){
+		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+	}
+	redisLog(REDIS_WARNING, "Cell:%s formula:%s: dim:%d ",s, prog, dim );
+	//redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
+	sdsfree(s);
+	//============
+
 
 	formula *f = formulaNew(
 			_db,
@@ -250,7 +290,7 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 			);
 
 	long double val = f->eval(f, _cell);
-	redisLog(REDIS_WARNING, "Value return after formula eval:%f", (double)val );
+	//redisLog(REDIS_WARNING, "Value return after formula eval:%f", (double)val );
 	_vvcc->setValueWithResponse(_vvcc, _cell, val);
 
 	f->free(f);
@@ -319,6 +359,7 @@ int sliceRecomputeLevel(vvcc* _vvcc, redisDb *_db,cube *_cube,slice *_slice){
 
 	return REDIS_OK;
 }
+
 int32_t sliceGetOverallMaxim(slice *_slice ){
 	int slice_max_level = -1;
 	for(uint32_t i =0; i< _slice->nr_dim; ++i){

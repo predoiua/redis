@@ -5,6 +5,7 @@
 #include "vvchangecollector.h"
 
 #define nr_up_links(up_links) ( sdslen((sds)up_links)/4 )
+#define nr_formula_selectors(_fs) ( sdslen((sds)_fs)/ (3*4) )
 
 //vv fct
 void vvcube(redisClient *c);

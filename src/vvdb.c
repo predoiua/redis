@@ -4,14 +4,17 @@
 #include "debug.h"
 
 // Class implementation
-static 	int  			vvdb_free     	(struct vvdb_struct *_vvdb);
-static 	int 			getDimIdx	  	(struct vvdb_struct *_vvdb, char* dim_code);
-static	int 			getDimItemIdx   (struct vvdb_struct *_vvdb, int dim_idx, char* di_code);
-static	void*   		getCellValue	(struct vvdb_struct *_vvdb, void* _cell);
-static int32_t  		getLevel		(struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
-static di_children* 	getDiChildren 	(struct vvdb_struct *_vvdb, int dim, int di);
-static char* 			getFormula 		(struct vvdb_struct *_vvdb, int dim, int di);
-static up_links 		getUpLinks 		(struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
+static 	int  			vvdb_free    		 	(struct vvdb_struct *_vvdb);
+static 	int 			getDimIdx	 		 	(struct vvdb_struct *_vvdb, char* dim_code);
+static	int 			getDimItemIdx			(struct vvdb_struct *_vvdb, int dim_idx, char* di_code);
+static	void*   		getCellValue			(struct vvdb_struct *_vvdb, void* _cell);
+static int32_t  		getLevel				(struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_idx);
+static di_children* 	getDiChildren		 	(struct vvdb_struct *_vvdb, int dim, int di);
+static char* 			getFormula 				(struct vvdb_struct *_vvdb, int dim, int di);
+static up_links 		getUpLinks 				(struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di);
+static formula_selector	getFormulaSelector 		(struct vvdb_struct *_vvdb, uint32_t di);
+static char* 			getSpecialFormula 		(struct vvdb_struct *_vvdb, int measure_dim, int measure_di, int formula_id);
+
 
 // Internal
 static size_t compute_index(cube* _cube,  cell* _cell );
@@ -19,18 +22,47 @@ static size_t compute_index(cube* _cube,  cell* _cell );
 static int   getIdFromHash (redisDb *_db, robj *hash_code, char* field_code);
 // return the pointer to cube data
 static void* getCubeData(redisDb *_db, cube* _cube);
-//static int set_simple_cell_value_at_index(void *ptr, size_t idx, double value);
-//static int get_cube_value_at_index(void *ptr, size_t idx, cell_val* value);
-//
-//static int set_simple_cell_value_at_index(void *ptr, size_t idx, double value) {
-////	if ( sdslen((sds)ptr) < idx ){
-////    	redisLog(REDIS_WARNING,"Index is greater than data size (%zu < %zu) !",sdslen(data), idx);
-////    	return REDIS_ERR;
-////	}
-//
-//	((cell_val*)ptr + idx)->val = value;// in the first byte i keep some info about the cell -> +1
-//	return REDIS_OK;
-//}
+
+// Redis
+int hashTypeGetFromZiplist(robj *o, robj *field,
+                           unsigned char **vstr,
+                           unsigned int *vlen,
+                           long long *vll);
+int hashTypeGetFromHashTable(robj *o, robj *field, robj **value);
+
+static char* 	getSpecialFormula (struct vvdb_struct *_vvdb, int measure_dim, int measure_di, int formula_id){
+	cube    *_cube = (cube*)_vvdb->cube;
+	redisDb *_db = (redisDb*)_vvdb->db;
+	sds s = sdscatprintf(sdsempty(),"%d_%d_%d_%d_spec_formula", (int)*_cube->numeric_code, measure_dim, measure_di, formula_id);
+	robj *so = createObject(REDIS_STRING,s);
+	robj* redis_data = lookupKeyRead(_db, so);
+	if (redis_data == NULL ){
+		redisLog(REDIS_WARNING,"No formula with key :%s", s);
+		decrRefCount(so);
+		return NULL;
+	}
+	decrRefCount(so);
+	//redisLog(REDIS_WARNING,"key :%s=>%s", s, (char*)redis_data->ptr);
+	return (char*)redis_data->ptr;
+}
+static formula_selector	getFormulaSelector 		(struct vvdb_struct *_vvdb, uint32_t di){
+	cube    *_cube = (cube*) _vvdb->cube;
+	redisDb *_db = (redisDb*)_vvdb->db;
+
+	sds s_key = sdscatprintf(sdsempty(), "%d_%d_%d_formula_selector", (int)*_cube->numeric_code, (int)*_cube->measure_dim_idx, di);
+	robj* o_key = createObject(REDIS_STRING,s_key);
+	robj* redis_data = lookupKeyRead(_db, o_key);
+
+	if (redis_data == NULL ){
+		redisLog(REDIS_WARNING,"No up links with key :%s", s_key);
+		decrRefCount(o_key);
+		return NULL;
+	}
+	decrRefCount(o_key);
+	return (formula_selector) redis_data->ptr;
+}
+
+
 //static int get_cube_value_at_index(void *ptr, size_t idx, cell_val* value) {
 //	//redisLog(REDIS_WARNING, "Get at :%p", ptr);
 //	*value = *((cell_val*)ptr + idx) ;
@@ -50,16 +82,18 @@ static void* getCubeData(redisDb *_db, cube* _cube) {
 
 vvdb* vvdbNew(void *_db, void* _cube) {
 	//vvdb* _vvdb = malloc(sizeof(vvdb));
-	vvdb* _vvdb = sdsnewlen(NULL,sizeof(vvdb));
+	vvdb* _vvdb = (vvdb*)sdsnewlen(NULL,sizeof(vvdb));
 	//Functions
-	_vvdb->free 			= vvdb_free;
-	_vvdb->getDimIdx 		= getDimIdx;
-	_vvdb->getDimItemIdx	= getDimItemIdx;
-	_vvdb->getCellValue		= getCellValue;
-	_vvdb->getLevel			= getLevel;
-	_vvdb->getDiChildren	= getDiChildren;
-	_vvdb->getFormula		= getFormula;
-	_vvdb->getUpLinks	 	= getUpLinks;
+	_vvdb->free 				= vvdb_free;
+	_vvdb->getDimIdx 			= getDimIdx;
+	_vvdb->getDimItemIdx		= getDimItemIdx;
+	_vvdb->getCellValue			= getCellValue;
+	_vvdb->getLevel				= getLevel;
+	_vvdb->getDiChildren		= getDiChildren;
+	_vvdb->getFormula			= getFormula;
+	_vvdb->getSpecialFormula	= getSpecialFormula;
+	_vvdb->getUpLinks		 	= getUpLinks;
+	_vvdb->getFormulaSelector	= getFormulaSelector;
 	// NULL initialization for members
 	_vvdb->db 			= NULL;
 	_vvdb->cube 		= NULL;
@@ -141,8 +175,8 @@ static int 	getDimIdx	  (struct vvdb_struct * _vvdb, char* dim_code) {
 	s = sdscatprintf(s,"%d_dim_code_to_idx", (int)*_cube->numeric_code);
 	robj *so = createObject(REDIS_STRING,s);
 	idx = getIdFromHash( _db, so, dim_code );
-	decrRefCount(so);
 	LOG( "For hash: %s, field:%s => value %d ", (char*)so->ptr, dim_code, idx);
+	decrRefCount(so);
 
     return idx;
 }
@@ -196,11 +230,12 @@ static int32_t getLevel( struct vvdb_struct *_vvdb, uint32_t dim_idx, size_t di_
 	robj *so = createObject(REDIS_STRING,s);
 	robj* redis_data = lookupKeyRead(_db, so);
 
-	decrRefCount(so);
 	if (redis_data == NULL ){
 		redisLog(REDIS_WARNING, "Invalid key : %s", s);
+		decrRefCount(so);
 		return -1;
 	}
+	decrRefCount(so);
 	return *(int32_t*)redis_data->ptr;
 }
 
@@ -236,11 +271,11 @@ static char* 	getFormula (struct vvdb_struct *_vvdb, int dim, int di){
 	robj* redis_data = lookupKeyRead(_db, so);
 	if (redis_data == NULL ){
 		redisLog(REDIS_WARNING,"No formula with key :%s", s);
+		decrRefCount(so);
 		return NULL;
 	}
-	//redisLog(REDIS_WARNING,"key :%s=>%s", s, (char*)redis_data->ptr);
-
 	decrRefCount(so);
+	//redisLog(REDIS_WARNING,"key :%s=>%s", s, (char*)redis_data->ptr);
 	return (char*)redis_data->ptr;
 }
 
@@ -253,9 +288,9 @@ static up_links	getUpLinks (struct vvdb_struct *_vvdb, uint32_t dim, uint32_t di
 	robj* redis_data = lookupKeyRead(_db, so);
 	if (redis_data == NULL ){
 		redisLog(REDIS_WARNING,"No up links with key :%s", s);
+		decrRefCount(so);
 		return NULL;
 	}
 	decrRefCount(so);
 	return (up_links) redis_data->ptr;
-
 }

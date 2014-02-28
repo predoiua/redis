@@ -1,7 +1,7 @@
 #ifndef _VVFORMULA_H
 #define _VVFORMULA_H
 
-typedef struct formula;
+//typedef struct formula;
 #include "VVExprLexer.h"
 #include "VVExprParser.h"
 #include "VVEval.h"

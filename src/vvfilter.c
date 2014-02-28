@@ -133,8 +133,6 @@ vvfilter* vvfilterNew(cube* _cube) {
 	//Members
 	_vvfilter->_cube				 = _cube;
 	_vvfilter->_slice               =  sliceBuild(_cube);
-	redisLog(REDIS_WARNING,"Slice after build is :%d",  _vvfilter->_slice->nr_dim);
-
 
 	return _vvfilter;
 }

@@ -161,9 +161,16 @@ int sliceAddUplinks(vvcc *_vvcc, slice* _slice, vvdb* _vvdb) {
    vvset cubecode di1 di2         dix value
    vvset c1 1 1 1 100.
  */
-int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
-		char** formula,
-		int*  dimension);
+int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,char** formula, int*  dimension);
+int test_fct(redisDb *_db,cube* _cube, cell* _cell, int d1, int d2, int d3, char* expect ) {
+	char formula[2000];
+	char* f = formula;
+	int dimension;
+	int res;
+	setCellIdx(_cell, 0, d1); setCellIdx(_cell, 1, d2); setCellIdx(_cell, 2, d3);
+	res = getFormulaAndDim(_db, _cube,_cell, &f,&dimension);
+	redisLog(REDIS_WARNING, "%d %d %d => Result:%d formula :%s dimension :%d . Expect: %s", d1, d2, d3, res,  f, dimension, expect);
+}
 void vvset(redisClient *c) {
 	long double target=0.;
 	if (REDIS_OK != getLongDoubleFromObject(c->argv[ c->argc - 1], &target) ) {
@@ -188,16 +195,32 @@ void vvset(redisClient *c) {
 		return;
 	}
 
-//	char formula[2000];
-//	char* f = formula;
-//	int dimension;
-//	int res;
-//	res = getFormulaAndDim(c->db,&cube,_cell,
-//			&f, //char** formula,
-//			&dimension// int*  dimension
-//			);
-//	redisLog(REDIS_WARNING, "done");
-//    redisLog(REDIS_WARNING, "Result:%d formula :%s dimension :%d ", res,  f, dimension);
+
+//	//qty
+//	test_fct(c->db,&cube, _cell, 2, 2, 0 , "ERR");
+//	test_fct(c->db,&cube, _cell, 1, 2, 0 , "m0 + m1 ...");
+//	test_fct(c->db,&cube, _cell, 2, 1, 0 , "ERR" );
+//	test_fct(c->db,&cube, _cell, 1, 1, 0 , "ERR" );
+//	test_fct(c->db,&cube, _cell, 0, 0, 0 , "ERR" );
+//	//Price
+//	test_fct(c->db,&cube, _cell, 2, 2, 1 , "ERR");
+//	test_fct(c->db,&cube, _cell, 1, 2, 1 , "ns/qty");
+//	test_fct(c->db,&cube, _cell, 2, 1, 1 , "ERR" );
+//	test_fct(c->db,&cube, _cell, 1, 1, 1 , "ERR" );
+//	test_fct(c->db,&cube, _cell, 0, 0, 1 , "ERR" );
+//	//NS
+//	test_fct(c->db,&cube, _cell, 2, 2, 2 , "qty * price");
+//	test_fct(c->db,&cube, _cell, 1, 2, 2 , "m0+ m1+ ..");
+//	test_fct(c->db,&cube, _cell, 2, 1, 2 , "apple + pear" );
+//	test_fct(c->db,&cube, _cell, 1, 1, 2 , "m0 + m1 + .." );
+//	test_fct(c->db,&cube, _cell, 0, 0, 2 , "m0 + m1 + .." );
+//	//Avg
+//	test_fct(c->db,&cube, _cell, 2, 2, 3 , "ns/qty");
+//	test_fct(c->db,&cube, _cell, 1, 2, 3 , "m0+ m1+ ..");
+//	test_fct(c->db,&cube, _cell, 2, 1, 3 , "apple + pear" );
+//	test_fct(c->db,&cube, _cell, 1, 1, 3 , "m0 + m1 + .." );
+//	test_fct(c->db,&cube, _cell, 0, 0, 3 , "m0 + m1 + .." );
+//
 //    addReplyError(c,"xxxxxxx");
 //    return;
 

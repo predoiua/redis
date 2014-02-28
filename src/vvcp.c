@@ -197,29 +197,29 @@ cell* cellBuildCell(cell* _cell ){
 }
 
 // Basic implementation
-int getFormulaAndDimSimple(vvdb *_vvdb, cube* _cube, cell* _cell,
-		char** formula,
-		int*  dimension
-		) {
-	for(int i=0;i<*_cube->nr_dim;++i){
-		size_t di = getCellDiIndex (_cell, i);
-//		int32_t lvl = _vvdb->getLevel(_vvdb,i, di);
-//		if (0 != lvl)
-		*formula = _vvdb->getFormula(_vvdb, i, di );
-		if ( NULL != *formula ) {
-			*dimension = i;
-			return REDIS_OK;
-		}
-	}
-	return REDIS_ERR;
-}
+//int getFormulaAndDimSimple(vvdb *_vvdb, cube* _cube, cell* _cell,
+//		char** formula,
+//		int*  dimension
+//		) {
+//	for(int i=0;i<*_cube->nr_dim;++i){
+//		size_t di = getCellDiIndex (_cell, i);
+////		int32_t lvl = _vvdb->getLevel(_vvdb,i, di);
+////		if (0 != lvl)
+//		*formula = _vvdb->getFormula(_vvdb, i, di );
+//		if ( NULL != *formula ) {
+//			*dimension = i;
+//			return REDIS_OK;
+//		}
+//	}
+//	return REDIS_ERR;
+//}
 
 
 int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 		char** formula,
 		int*  dimension
 		) {
-	int res = REDIS_OK;
+	int res = REDIS_ERR;
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	uint32_t measure_di_index = (uint32_t) getCellDiIndex(_cell, *_cube->measure_dim_idx);
 	formula_selector fs = _vvdb->getFormulaSelector(_vvdb, measure_di_index);
@@ -231,24 +231,28 @@ int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 		int fs_dim		  = getFormulaSelectorDimension(_fs);
 		int fs_formula_id = getFormulaSelectorFormulaFormula(_fs);
 
-		redisLog(REDIS_WARNING, "Formula match values dim:%d formula_id:%d target dimension:%d", fs_dim, fs_formula_id, getFormulaSelectorFormulaDimension(_fs)  );
+		//redisLog(REDIS_WARNING, "Formula match values dim:%d formula_id:%d target dimension:%d", fs_dim, fs_formula_id, getFormulaSelectorFormulaDimension(_fs)  );
 
+		// Check if the di on that dimension is simple
+		size_t di = getCellDiIndex (_cell, fs_dim);
+		*formula = _vvdb->getFormula(_vvdb, fs_dim, di );
+		if ( NULL == *formula ) {
+			continue;
+		}
+		// So .. we have a match...
 		if ( -2 == fs_formula_id ) {//Non aggregable measure
 			res = REDIS_ERR;
 			break;
 		}
-
-		//uint32_t working_di = (uint32_t) getCellDiIndex(_cell, i);//*_cube->measure_dim_idx);
+		*dimension = getFormulaSelectorFormulaDimension(_fs);
 		if ( -1 == fs_formula_id ){ // All ( Any ) formula
-
-			res = getFormulaAndDimSimple(_vvdb, _cube,  _cell,
-					formula,
-					dimension);
+			// * formula is already set
+			res = REDIS_OK;
 			break;
 		}
 
-		*dimension = getFormulaSelectorFormulaDimension(_fs);
 		*formula = _vvdb->getSpecialFormula(_vvdb,  *_cube->measure_dim_idx, measure_di_index, fs_formula_id );
+		res = REDIS_OK;
 		break;
 	}
 
@@ -257,6 +261,16 @@ int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 }
 
 int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
+	// Trace
+	//============
+//	sds s = sdsempty();
+//	for(int i=0; i < _cell->nr_dim; ++i ){
+//		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+//	}
+//	redisLog(REDIS_WARNING, "Cell:%s formula:%s: dim:%d ",s, prog, dim );
+//	//redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
+//	sdsfree(s);
+	//============
 
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	char* prog = NULL;
@@ -271,17 +285,6 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 		_vvdb->free(_vvdb);
 		return REDIS_ERR;
 	}
-	// Trace
-	//============
-	sds s = sdsempty();
-	for(int i=0; i < _cell->nr_dim; ++i ){
-		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
-	}
-	redisLog(REDIS_WARNING, "Cell:%s formula:%s: dim:%d ",s, prog, dim );
-	//redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
-	sdsfree(s);
-	//============
-
 
 	formula *f = formulaNew(
 			_db,

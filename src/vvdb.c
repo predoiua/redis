@@ -37,7 +37,7 @@ static char* 	getSpecialFormula (struct vvdb_struct *_vvdb, int measure_dim, int
 	robj *so = createObject(REDIS_STRING,s);
 	robj* redis_data = lookupKeyRead(_db, so);
 	if (redis_data == NULL ){
-		redisLog(REDIS_WARNING,"No formula with key :%s", s);
+		redisLog(REDIS_WARNING,"No special formula with key :%s", s);
 		decrRefCount(so);
 		return NULL;
 	}
@@ -270,7 +270,7 @@ static char* 	getFormula (struct vvdb_struct *_vvdb, int dim, int di){
 	robj *so = createObject(REDIS_STRING,s);
 	robj* redis_data = lookupKeyRead(_db, so);
 	if (redis_data == NULL ){
-		redisLog(REDIS_WARNING,"No formula with key :%s", s);
+		//redisLog(REDIS_WARNING,"No formula with key :%s", s);
 		decrRefCount(so);
 		return NULL;
 	}

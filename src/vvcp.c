@@ -141,9 +141,9 @@ int sliceResetElementsLevelFull(slice *_slice ) {
 			return REDIS_ERR;
 		}
 		// It can be ...
-		if ( 0 != min_level ) {
-			redisLog(REDIS_WARNING,"For dimension : %d i have minimum level != 0 (%d)", i, min_level );
-		}
+//		if ( 0 != min_level ) {
+//			redisLog(REDIS_WARNING,"For dimension : %d i have minimum level != 0 (%d)", i, min_level );
+//		}
 		el->curr_level = min_level;
 		el->min_level = min_level;
 		el->max_level = max_level;
@@ -261,16 +261,6 @@ int getFormulaAndDim(redisDb *_db,cube *_cube,cell* _cell,
 }
 
 int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
-	// Trace
-	//============
-//	sds s = sdsempty();
-//	for(int i=0; i < _cell->nr_dim; ++i ){
-//		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
-//	}
-//	redisLog(REDIS_WARNING, "Cell:%s formula:%s: dim:%d ",s, prog, dim );
-//	//redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
-//	sdsfree(s);
-	//============
 
 	vvdb *_vvdb = vvdbNew(_db,_cube);
 	char* prog = NULL;
@@ -280,6 +270,16 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 		_vvdb->free(_vvdb);
 		return REDIS_ERR;
 	}
+	// Trace
+	//============
+	sds s = sdsempty();
+	for(int i=0; i < _cell->nr_dim; ++i ){
+		s = sdscatprintf(s,"%d ", (int)getCellDiIndex(_cell, i) );
+	}
+	redisLog(REDIS_WARNING, "Cell:%s formula:%s: dim:%d ",s, prog, dim );
+	//redisLog(REDIS_WARNING, "Recompute cell at idx:%s ", s);
+	sdsfree(s);
+	//============
 	if ( NULL == prog){
 		redisLog(REDIS_WARNING, "ERROR : Return formula == null, but return code in OK." );
 		_vvdb->free(_vvdb);
@@ -293,7 +293,7 @@ int cellRecompute(vvcc *_vvcc,redisDb *_db,cube *_cube,cell* _cell){
 			);
 
 	long double val = f->eval(f, _cell);
-	//redisLog(REDIS_WARNING, "Value return after formula eval:%f", (double)val );
+//	redisLog(REDIS_WARNING, "Value return after formula eval:%f", (double)val );
 	_vvcc->setValueWithResponse(_vvcc, _cell, val);
 
 	f->free(f);

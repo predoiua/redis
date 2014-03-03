@@ -54,6 +54,7 @@ static int writeResponse(struct vvcc_struct *_vvcc, cell *_cell, cell_val *_cell
 static int				setValueWithResponse	(struct vvcc_struct *_vvcc, cell *_cell, long double new_value) {
 	vvdb *_vvdb = (vvdb *)_vvcc->vvdb;
 	long double round = roundf(new_value*100.0f)/100.0f;// !! Just a test
+	//long double round = new_value;
 	cell_val *_cv = _vvdb->getCellValue(_vvdb, _cell);
 	if ( ! isSameValue(_cv->val, round) ) {
 		_cv->val = round;
@@ -63,7 +64,12 @@ static int				setValueWithResponse	(struct vvcc_struct *_vvcc, cell *_cell, long
 }
 
 static int isSameValue(double old_value, double new_value) {
-	 return abs(old_value - new_value) < 0.00001 ? 1 : 0;
+	 //printf( "Compare %f with %f , result : %d", old_value, new_value, abs(old_value - new_value) < 0.00001 ? 1 : 0);
+	 double eplison = 0.00001;
+  	 double diff = old_value - new_value;
+  	 if (diff > 0.00001) return 0;
+  	 if (diff < -0.00001) return 0;
+	 return 1;
 }
 
 static 	int 			flush     	 			(struct vvcc_struct *_vvcc) {

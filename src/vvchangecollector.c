@@ -41,6 +41,8 @@ static int writeResponse(struct vvcc_struct *_vvcc, cell *_cell, cell_val *_cell
 		s = sdscatprintf(s,"%zu ", getCellDiIndex(_cell, i) );
 	}
 	s = sdscatprintf(s,"%.2f", _cell_val->val);
+	if ( isCellHold(_cell_val) ){ s = sdscat(s," 1"); } else { s = sdscat(s," 0"); }
+	if ( isCellActual(_cell_val) ){ s = sdscat(s," 1"); } else { s = sdscat(s," 0"); }
 	//addReplySds(c, s);
 	addReplyBulkCBuffer(c, s, sdslen(s));
 	sdsfree(s);
@@ -65,7 +67,6 @@ static int				setValueWithResponse	(struct vvcc_struct *_vvcc, cell *_cell, long
 
 static int isSameValue(double old_value, double new_value) {
 	 //printf( "Compare %f with %f , result : %d", old_value, new_value, abs(old_value - new_value) < 0.00001 ? 1 : 0);
-	 double eplison = 0.00001;
   	 double diff = old_value - new_value;
   	 if (diff > 0.00001) return 0;
   	 if (diff < -0.00001) return 0;

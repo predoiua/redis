@@ -15,6 +15,19 @@ typedef struct {
 	uint8_t	flags;
 	double  val; // 4 bites
 } cell_val;
+#define HOLD_MASK  0x00
+#define ACTUAL_MASK 0x01
+#define setCellHold(cell_val) setCellFlagMask(cell_val, HOLD_MASK)
+#define isCellHold(cell_val) isCellFlagMask(cell_val, HOLD_MASK)
+#define clearCellHold(cell_val) setCellFlagMask(cell_val, HOLD_MASK)
+
+#define setCellActual(cell_val) setCellFlagMask(cell_val, ACTUAL_MASK)
+#define isCellActual(cell_val) isCellFlagMask(cell_val, ACTUAL_MASK)
+#define clearCellActual(cell_val) setCellFlagMask(cell_val, ACTUAL_MASK)
+
+#define setCellFlagMask(cell_val, mask) do { cell_val->flags |= mask; } while(0);
+#define isCellFlagMask(cell_val, mask) ( cell_val->flags & mask )
+#define clearCellFlagMask(cell_val, mask) do { cell_val->flags &= mask; } while(0);
 
 typedef struct{
 	uint32_t	nr_dim; // same as nr of dim in cube
